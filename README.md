@@ -93,6 +93,14 @@ go mod tidy
 go run cmd/moviepilot/main.go
 ```
 
+## 本地开发环境
+
+本项目已初始化 Git 仓库，包含以下配置：
+
+- `.gitignore` 文件已配置，忽略不必要的文件
+- 初始提交已完成，包含所有项目文件
+- Git 用户信息已配置
+
 ## 配置
 
 项目配置文件位于 `configs/config.yaml`，可以根据需要进行修改。
