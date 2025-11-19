@@ -1,0 +1,141 @@
+# MoviePilot Go 配置文件
+
+# 应用配置
+app:
+  name: "MoviePilot Go"
+  version: "2.8.1"
+  environment: "development"  # development, staging, production
+  debug: true
+  port: 3001
+  host: "0.0.0.0"
+
+# 数据库配置
+database:
+  type: "postgres"
+  host: "localhost"
+  port: 5432
+  name: "moviepilot"
+  user: "moviepilot"
+  password: "moviepilot123"
+  ssl_mode: "disable"
+  max_open_conns: 100
+  max_idle_conns: 10
+  conn_max_lifetime: 3600
+
+# Redis配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: "redis123"
+  db: 0
+  pool_size: 10
+  min_idle_conns: 5
+
+# 日志配置
+log:
+  level: "info"  # debug, info, warn, error, fatal
+  format: "json"  # json, console
+  output: "stdout"  # stdout, file
+  file_path: "./logs/app.log"
+  max_size: 100  # MB
+  max_backups: 3
+  max_age: 28  # days
+  compress: true
+
+# JWT配置
+jwt:
+  secret: "your-secret-key-here"
+  expire_hours: 24
+  issuer: "moviepilot-go"
+
+# API配置
+api:
+  prefix: "/api/v1"
+  cors:
+    enabled: true
+    allow_origins: ["*"]
+    allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers: ["*"]
+  rate_limit:
+    enabled: false
+    requests_per_minute: 100
+
+# 文件存储配置
+storage:
+  download_path: "./data/downloads"
+  media_path: "./data/media"
+  cache_path: "./data/cache"
+  temp_path: "./data/temp"
+  max_file_size: "10GB"
+
+# 下载器配置
+downloaders:
+  qbittorrent:
+    enabled: true
+    url: "http://localhost:8080"
+    username: "admin"
+    password: "adminadmin"
+    category: "moviepilot"
+  transmission:
+    enabled: false
+    url: "http://localhost:9091/transmission/rpc"
+    username: ""
+    password: ""
+
+# 媒体服务器配置
+media_servers:
+  emby:
+    enabled: false
+    url: "http://localhost:8096"
+    api_key: ""
+  jellyfin:
+    enabled: false
+    url: "http://localhost:8097"
+    api_key: ""
+  plex:
+    enabled: false
+    url: "http://localhost:32400"
+    token: ""
+
+# 通知配置
+notifications:
+  webhook:
+    enabled: false
+    url: ""
+  telegram:
+    enabled: false
+    bot_token: ""
+    chat_id: ""
+  email:
+    enabled: false
+    smtp_host: ""
+    smtp_port: 587
+    username: ""
+    password: ""
+    from: ""
+    to: ""
+
+# 插件配置
+plugins:
+  enabled: true
+  python_service_url: "http://localhost:5000"
+  auto_load: true
+  plugin_dirs: ["./plugins"]
+
+# 监控配置
+monitoring:
+  prometheus:
+    enabled: true
+    path: "/metrics"
+  health_check:
+    enabled: true
+    path: "/health"
+    interval: 30
+
+# 安全配置
+security:
+  api_key_enabled: true
+  api_key: "your-api-key-here"
+  session_timeout: 3600  # seconds
+  max_login_attempts: 5
+  lockout_duration: 900  # seconds

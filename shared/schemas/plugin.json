@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MoviePilot Plugin Configuration",
+  "description": "Schema for MoviePilot plugin configuration files",
+  "type": "object",
+  "required": ["id", "name", "version", "type"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the plugin",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name of the plugin",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "version": {
+      "type": "string",
+      "description": "Plugin version following semantic versioning",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of the plugin",
+      "maxLength": 500
+    },
+    "author": {
+      "type": "string",
+      "description": "Plugin author",
+      "maxLength": 100
+    },
+    "type": {
+      "type": "string",
+      "description": "Plugin type",
+      "enum": ["site", "indexer", "mediaserver", "notification", "downloader", "scraper"]
+    },
+    "entry_point": {
+      "type": "string",
+      "description": "Main entry point file",
+      "default": "main.py"
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Plugin dependencies",
+      "items": {
+        "type": "object",
+        "required": ["name", "version"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "optional": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "config_schema": {
+      "type": "object",
+      "description": "Configuration schema for the plugin"
+    },
+    "permissions": {
+      "type": "array",
+      "description": "Required permissions",
+      "items": {
+        "type": "string",
+        "enum": ["network", "filesystem", "database", "system"]
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Plugin tags for categorization",
+      "items": {
+        "type": "string"
+      }
+    },
+    "homepage": {
+      "type": "string",
+      "description": "Plugin homepage URL",
+      "format": "uri"
+    },
+    "repository": {
+      "type": "string",
+      "description": "Source code repository URL",
+      "format": "uri"
+    },
+    "license": {
+      "type": "string",
+      "description": "Plugin license"
+    },
+    "min_moviepilot_version": {
+      "type": "string",
+      "description": "Minimum MoviePilot version required",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "max_moviepilot_version": {
+      "type": "string",
+      "description": "Maximum MoviePilot version supported",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,217 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MoviePilot Configuration",
+  "description": "Schema for MoviePilot main configuration file",
+  "type": "object",
+  "properties": {
+    "server": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "default": "0.0.0.0",
+          "description": "Server host address"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 3001,
+          "description": "Server port"
+        },
+        "debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug mode"
+        },
+        "cors": {
+          "type": "object",
+          "properties": {
+            "allowed_origins": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": ["*"]
+            },
+            "allowed_methods": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+            }
+          }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "required": ["type", "host", "port", "name", "username", "password"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["postgresql", "mysql", "sqlite"],
+          "default": "postgresql"
+        },
+        "host": {
+          "type": "string",
+          "default": "localhost"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 5432
+        },
+        "name": {
+          "type": "string",
+          "description": "Database name"
+        },
+        "username": {
+          "type": "string",
+          "description": "Database username"
+        },
+        "password": {
+          "type": "string",
+          "description": "Database password"
+        },
+        "ssl_mode": {
+          "type": "string",
+          "enum": ["disable", "require", "verify-ca", "verify-full"],
+          "default": "prefer"
+        },
+        "max_connections": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 25
+        }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "default": "localhost"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 6379
+        },
+        "password": {
+          "type": "string"
+        },
+        "database": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15,
+          "default": 0
+        },
+        "pool_size": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error", "fatal"],
+          "default": "info"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json", "text"],
+          "default": "json"
+        },
+        "output": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["stdout"]
+        },
+        "file": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "default": "logs/app.log"
+            },
+            "max_size": {
+              "type": "integer",
+              "description": "Maximum file size in MB",
+              "default": 100
+            },
+            "max_backups": {
+              "type": "integer",
+              "default": 3
+            },
+            "max_age": {
+              "type": "integer",
+              "description": "Maximum age in days",
+              "default": 28
+            }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "jwt_secret": {
+          "type": "string",
+          "description": "JWT secret key"
+        },
+        "jwt_expiration": {
+          "type": "string",
+          "default": "24h",
+          "description": "JWT token expiration time"
+        },
+        "api_key": {
+          "type": "string",
+          "description": "API key for external access"
+        },
+        "rate_limit": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "requests_per_minute": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 60
+            }
+          }
+        }
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "directory": {
+          "type": "string",
+          "default": "plugins"
+        },
+        "auto_load": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

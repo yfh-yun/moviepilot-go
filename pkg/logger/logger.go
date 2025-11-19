@@ -1,0 +1,534 @@
+// Package logger MoviePilot日志管理模块
+package logger
+
+import (
+	"context"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
+
+	"github.com/yfh-yun/moviepilot-go/internal/config"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+)
+
+// 预定义lumberjack兼容的结构体以避免依赖问题
+type lumberjackLogger struct {
+	Filename   string
+	MaxSize    int
+	MaxBackups int
+	MaxAge     int
+	Compress   bool
+	LocalTime  bool
+}
+
+func (l *lumberjackLogger) Write(p []byte) (n int, err error) {
+	// 简化实现，实际使用时会替换为真实的lumberjack.Logger
+	file, err := os.OpenFile(l.Filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+	return file.Write(p)
+}
+
+var (
+	// Logger 全局日志实例
+	Logger *zap.Logger
+	// Sugar 全局sugar日志实例（提供更灵活的接口）
+	Sugar *zap.SugaredLogger
+
+	// 上下文键定义
+	ContextKeyRequestID = contextKey("request_id")
+	ContextKeyUserID    = contextKey("user_id")
+	ContextKeyTraceID   = contextKey("trace_id")
+
+	// 日志配置默认值
+	compress = true // 日志文件压缩
+
+	// 环境变量前缀
+	envPrefix = "LOGGER_"
+)
+
+// contextKey 上下文键类型
+type contextKey string
+
+// ContextLogger 带上下文的日志结构体
+type ContextLogger struct {
+	logger *zap.Logger
+}
+
+// Init 初始化日志系统
+func Init() error {
+	// 设置默认配置值
+	setDefaultConfig()
+	// 从环境变量读取配置，覆盖配置文件中的值
+	if envLogLevel := os.Getenv(envPrefix + "LEVEL"); envLogLevel != "" {
+		config.Config.Set("log.level", envLogLevel)
+	}
+
+	if envLogFile := os.Getenv(envPrefix + "FILE"); envLogFile != "" {
+		config.Config.Set("log.file_path", envLogFile)
+	}
+
+	if envMaxSize := os.Getenv(envPrefix + "MAX_SIZE"); envMaxSize != "" {
+		if size, err := strconv.Atoi(envMaxSize); err == nil {
+			config.Config.Set("log.max_size", size)
+		}
+	}
+
+	if envMaxBackups := os.Getenv(envPrefix + "MAX_BACKUPS"); envMaxBackups != "" {
+		if backups, err := strconv.Atoi(envMaxBackups); err == nil {
+			config.Config.Set("log.max_backups", backups)
+		}
+	}
+
+	if envMaxAge := os.Getenv(envPrefix + "MAX_AGE"); envMaxAge != "" {
+		if age, err := strconv.Atoi(envMaxAge); err == nil {
+			config.Config.Set("log.max_age", age)
+		}
+	}
+
+	if envCompress := os.Getenv(envPrefix + "COMPRESS"); envCompress != "" {
+		if comp, err := strconv.ParseBool(envCompress); err == nil {
+			compress = comp
+		}
+	}
+
+	// 创建日志配置
+	logConfig := buildLogConfig()
+
+	var logger *zap.Logger
+	var err error
+
+	// 检查是否需要多路输出
+	if len(logConfig.OutputPaths) > 0 && logConfig.OutputPaths[0] == "multiwriter:" {
+		// 处理多路输出的特殊配置
+		logger, err = buildMultiWriterLogger(&logConfig)
+	} else {
+		// 标准配置构建
+		logger, err = logConfig.Build(zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+	}
+
+	if err != nil {
+		return err
+	}
+
+	Logger = logger
+	Sugar = logger.Sugar()
+
+	return nil
+}
+
+// buildLogConfig 构建日志配置
+func buildLogConfig() zap.Config {
+	// 获取配置
+	level := config.GetLogLevel()
+	format := config.GetLogFormat()
+	output := config.GetLogOutput()
+
+	// 创建基础配置
+	logConfig := zap.NewProductionConfig()
+
+	// 设置日志级别
+	switch level {
+	case "debug":
+		logConfig.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	case "info":
+		logConfig.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	case "warn":
+		logConfig.Level = zap.NewAtomicLevelAt(zapcore.WarnLevel)
+	case "error":
+		logConfig.Level = zap.NewAtomicLevelAt(zapcore.ErrorLevel)
+	case "fatal":
+		logConfig.Level = zap.NewAtomicLevelAt(zapcore.FatalLevel)
+	case "panic":
+		logConfig.Level = zap.NewAtomicLevelAt(zapcore.PanicLevel)
+	default:
+		logConfig.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	}
+
+	// 设置编码器
+	if format == "console" {
+		logConfig.Encoding = "console"
+		logConfig.EncoderConfig = zap.NewDevelopmentEncoderConfig()
+		logConfig.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		logConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	} else {
+		logConfig.Encoding = "json"
+		logConfig.EncoderConfig = zap.NewProductionEncoderConfig()
+		logConfig.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		logConfig.EncoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
+	}
+
+	// 设置输出
+	switch output {
+	case "file":
+		configureFileOutput(&logConfig, false)
+	case "both":
+		configureFileOutput(&logConfig, true)
+	default:
+		// 标准输出
+		logConfig.OutputPaths = []string{"stdout"}
+		logConfig.ErrorOutputPaths = []string{"stderr"}
+	}
+
+	return logConfig
+}
+
+// buildMultiWriterLogger 构建多路输出的日志器
+func buildMultiWriterLogger(logConfig *zap.Config) (*zap.Logger, error) {
+	// 提取文件路径
+	filePath := ""
+	if len(logConfig.OutputPaths) > 0 {
+		path := logConfig.OutputPaths[0]
+		if len(path) > 12 && path[:12] == "multiwriter:" {
+			filePath = path[12:]
+		}
+	}
+
+	if filePath == "" {
+		filePath = "/var/log/moviepilot/app.log"
+	}
+
+	// 配置日志轮转（仅在文件输出时使用）
+	maxSize := config.Config.GetInt("log.max_size")
+	maxBackups := config.Config.GetInt("log.max_backups")
+	maxAge := config.Config.GetInt("log.max_age")
+
+	if maxSize == 0 {
+		maxSize = 100
+	}
+	if maxBackups == 0 {
+		maxBackups = 3
+	}
+	if maxAge == 0 {
+		maxAge = 28
+	}
+
+	// 创建文件写入器（使用兼容结构体）
+	fileWriter := &lumberjackLogger{
+		Filename:   filePath,
+		MaxSize:    maxSize,
+		MaxBackups: maxBackups,
+		MaxAge:     maxAge,
+		Compress:   compress,
+		LocalTime:  true,
+	}
+
+	// 创建多路写入器
+	multiWriter := zapcore.AddSync(io.MultiWriter(os.Stdout, fileWriter))
+
+	// 创建编码器
+	var encoder zapcore.Encoder
+	if logConfig.Encoding == "console" {
+		encoder = zapcore.NewConsoleEncoder(logConfig.EncoderConfig)
+	} else {
+		encoder = zapcore.NewJSONEncoder(logConfig.EncoderConfig)
+	}
+
+	// 创建核心
+	core := zapcore.NewCore(encoder, multiWriter, logConfig.Level)
+
+	// 构建日志器
+	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel)), nil
+}
+
+// configureFileOutput 配置文件输出
+func configureFileOutput(logConfig *zap.Config, includeStdout bool) {
+	filePath := config.Config.GetString("log.file_path")
+	if filePath == "" {
+		filePath = "/var/log/moviepilot/app.log"
+	}
+
+	// 确保目录存在
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		// 如果创建目录失败，回退到标准输出
+		logConfig.OutputPaths = []string{"stdout"}
+		logConfig.ErrorOutputPaths = []string{"stderr"}
+		return
+	}
+
+	// 配置日志轮转（仅在文件输出时使用）
+	maxSize := config.Config.GetInt("log.max_size")
+	maxBackups := config.Config.GetInt("log.max_backups")
+	maxAge := config.Config.GetInt("log.max_age")
+
+	if maxSize == 0 {
+		maxSize = 100
+	}
+	if maxBackups == 0 {
+		maxBackups = 3
+	}
+	if maxAge == 0 {
+		maxAge = 28
+	}
+
+	// 配置输出路径
+	if includeStdout {
+		// 注意：多路输出将在 Init() 函数中处理
+		// 这里只配置标记
+
+		// 创建新的配置以支持多路输出
+		*logConfig = zap.Config{
+			Level:             logConfig.Level,
+			Development:       logConfig.Development,
+			DisableCaller:     logConfig.DisableCaller,
+			DisableStacktrace: logConfig.DisableStacktrace,
+			Sampling:          logConfig.Sampling,
+			Encoding:          logConfig.Encoding,
+			EncoderConfig:     logConfig.EncoderConfig,
+			OutputPaths:       []string{"stdout"}, // 用于 Build() 方法
+			ErrorOutputPaths:  []string{"stderr"}, // 用于 Build() 方法
+		}
+
+		// 注意：实际的多路输出需要在 Init() 中特殊处理
+		// 这里标记需要使用自定义核心
+		logConfig.OutputPaths = []string{"multiwriter:" + filePath}
+	} else {
+		// 仅文件输出
+		logConfig.OutputPaths = []string{filePath}
+		logConfig.ErrorOutputPaths = []string{filePath}
+	}
+
+	// 创建自定义编码器配置
+	encoderConfig := logConfig.EncoderConfig
+	encoderConfig.TimeKey = "timestamp"
+	encoderConfig.LevelKey = "level"
+	encoderConfig.NameKey = "logger"
+	encoderConfig.CallerKey = "caller"
+	encoderConfig.MessageKey = "message"
+	encoderConfig.StacktraceKey = "stacktrace"
+	encoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	encoderConfig.EncodeDuration = zapcore.SecondsDurationEncoder
+
+	logConfig.EncoderConfig = encoderConfig
+}
+
+// createDefaultLogger 创建默认日志实例
+func createDefaultLogger() (*zap.Logger, error) {
+	// 创建默认配置，确保符合规范
+	config := zap.NewProductionConfig()
+	config.EncoderConfig = zapcore.EncoderConfig{
+		TimeKey:        "timestamp",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "message",
+		StacktraceKey:  "stacktrace",
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.SecondsDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	}
+	return config.Build(zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+}
+
+// WithContext 从上下文中提取信息并创建带上下文的日志实例
+func WithContext(ctx context.Context) *ContextLogger {
+	fields := []zap.Field{}
+
+	// 从上下文提取request_id
+	if requestID, ok := ctx.Value(ContextKeyRequestID).(string); ok && requestID != "" {
+		fields = append(fields, zap.String("request_id", requestID))
+	}
+
+	// 从上下文提取user_id
+	if userID, ok := ctx.Value(ContextKeyUserID).(string); ok && userID != "" {
+		fields = append(fields, zap.String("user_id", userID))
+	}
+
+	// 从上下文提取trace_id
+	if traceID, ok := ctx.Value(ContextKeyTraceID).(string); ok && traceID != "" {
+		fields = append(fields, zap.String("trace_id", traceID))
+	}
+
+	return &ContextLogger{
+		logger: GetLogger().With(fields...),
+	}
+}
+
+// GetLogger 获取日志实例
+func GetLogger() *zap.Logger {
+	if Logger == nil {
+		// 如果没有初始化，创建一个默认的
+		logger, err := createDefaultLogger()
+		if err != nil {
+			// 如果创建失败，返回一个开发模式的日志器
+			logger, _ = zap.NewDevelopment()
+		}
+		return logger
+	}
+	return Logger
+}
+
+// Debug 带上下文的调试日志
+func (l *ContextLogger) Debug(msg string, fields ...zap.Field) {
+	l.logger.Debug(msg, fields...)
+}
+
+// Info 带上下文的信息日志
+func (l *ContextLogger) Info(msg string, fields ...zap.Field) {
+	l.logger.Info(msg, fields...)
+}
+
+// Warn 带上下文的警告日志
+func (l *ContextLogger) Warn(msg string, fields ...zap.Field) {
+	l.logger.Warn(msg, fields...)
+}
+
+// Error 带上下文的错误日志
+func (l *ContextLogger) Error(msg string, fields ...zap.Field) {
+	l.logger.Error(msg, fields...)
+}
+
+// Fatal 带上下文的致命错误日志
+func (l *ContextLogger) Fatal(msg string, fields ...zap.Field) {
+	l.logger.Fatal(msg, fields...)
+}
+
+// Panic 带上下文的Panic日志
+func (l *ContextLogger) Panic(msg string, fields ...zap.Field) {
+	l.logger.Panic(msg, fields...)
+}
+
+// Debugf 带上下文的格式化调试日志
+func (l *ContextLogger) Debugf(template string, args ...interface{}) {
+	l.logger.Sugar().Debugf(template, args...)
+}
+
+// Infof 带上下文的格式化信息日志
+func (l *ContextLogger) Infof(template string, args ...interface{}) {
+	l.logger.Sugar().Infof(template, args...)
+}
+
+// Warnf 带上下文的格式化警告日志
+func (l *ContextLogger) Warnf(template string, args ...interface{}) {
+	l.logger.Sugar().Warnf(template, args...)
+}
+
+// Errorf 带上下文的格式化错误日志
+func (l *ContextLogger) Errorf(template string, args ...interface{}) {
+	l.logger.Sugar().Errorf(template, args...)
+}
+
+// Fatalf 带上下文的格式化致命错误日志
+func (l *ContextLogger) Fatalf(template string, args ...interface{}) {
+	l.logger.Sugar().Fatalf(template, args...)
+}
+
+// Panicf 带上下文的格式化Panic日志
+func (l *ContextLogger) Panicf(template string, args ...interface{}) {
+	l.logger.Sugar().Panicf(template, args...)
+}
+
+// GetSugar 获取Sugar日志实例
+func GetSugar() *zap.SugaredLogger {
+	if Sugar == nil {
+		// 如果没有初始化，创建一个默认的
+		logger, err := createDefaultLogger()
+		if err != nil {
+			// 如果创建失败，返回一个开发模式的日志器
+			logger, _ = zap.NewDevelopment()
+		}
+		return logger.Sugar()
+	}
+	return Sugar
+}
+
+// setDefaultConfig 设置日志默认配置值
+func setDefaultConfig() {
+	// 如果配置中没有设置，使用默认值
+	if !config.Config.IsSet("log.level") {
+		config.Config.Set("log.level", "info")
+	}
+	if !config.Config.IsSet("log.format") {
+		config.Config.Set("log.format", "json")
+	}
+	if !config.Config.IsSet("log.output") {
+		config.Config.Set("log.output", "file")
+	}
+	if !config.Config.IsSet("log.file_path") {
+		config.Config.Set("log.file_path", "/var/log/moviepilot/app.log")
+	}
+	if !config.Config.IsSet("log.max_size") {
+		config.Config.Set("log.max_size", 100)
+	}
+	if !config.Config.IsSet("log.max_backups") {
+		config.Config.Set("log.max_backups", 3)
+	}
+	if !config.Config.IsSet("log.max_age") {
+		config.Config.Set("log.max_age", 28)
+	}
+}
+
+// Sync 同步日志缓冲区
+func Sync() {
+	if Logger != nil {
+		Logger.Sync()
+	}
+}
+
+// Debug 调试日志
+func Debug(msg string, fields ...zap.Field) {
+	GetLogger().Debug(msg, fields...)
+}
+
+// Info 信息日志
+func Info(msg string, fields ...zap.Field) {
+	GetLogger().Info(msg, fields...)
+}
+
+// Warn 警告日志
+func Warn(msg string, fields ...zap.Field) {
+	GetLogger().Warn(msg, fields...)
+}
+
+// Error 错误日志
+func Error(msg string, fields ...zap.Field) {
+	GetLogger().Error(msg, fields...)
+}
+
+// Fatal 致命错误日志
+func Fatal(msg string, fields ...zap.Field) {
+	GetLogger().Fatal(msg, fields...)
+}
+
+// Panic Panic日志
+func Panic(msg string, fields ...zap.Field) {
+	GetLogger().Panic(msg, fields...)
+}
+
+// Debugf 格式化调试日志
+func Debugf(template string, args ...interface{}) {
+	GetSugar().Debugf(template, args...)
+}
+
+// Infof 格式化信息日志
+func Infof(template string, args ...interface{}) {
+	GetSugar().Infof(template, args...)
+}
+
+// Warnf 格式化警告日志
+func Warnf(template string, args ...interface{}) {
+	GetSugar().Warnf(template, args...)
+}
+
+// Errorf 格式化错误日志
+func Errorf(template string, args ...interface{}) {
+	GetSugar().Errorf(template, args...)
+}
+
+// Fatalf 格式化致命错误日志
+func Fatalf(template string, args ...interface{}) {
+	GetSugar().Fatalf(template, args...)
+}
+
+// Panicf 格式化Panic日志
+func Panicf(template string, args ...interface{}) {
+	GetSugar().Panicf(template, args...)
+}

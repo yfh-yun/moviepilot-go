@@ -1,0 +1,23 @@
+{
+  "plugins": {
+    "native": {
+      "path": "./plugins",
+      "enabled": true
+    },
+    "python": {
+      "host": "localhost",
+      "port": 5000,
+      "timeout": 30,
+      "enabled": true
+    },
+    "web": {
+      "enabled": false,
+      "path": "./web-plugins"
+    },
+    "plugins": [
+      "hello-plugin",
+      "downloader-plugin",
+      "notifier-plugin"
+    ]
+  }
+}

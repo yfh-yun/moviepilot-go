@@ -1,0 +1,168 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build output
+bin/
+build/
+dist/
+
+# Logs
+logs/
+*.log
+
+# Configuration files with secrets
+configs/config.yaml
+configs/*.key
+configs/*.pem
+configs/*.crt
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Data directories
+data/
+downloads/
+media/
+cache/
+temp/
+
+# Coverage reports
+coverage.out
+coverage.html
+
+# Test files
+test-results/
+
+# Docker
+.dockerignore
+
+# Air live reload
+tmp/
+
+# Local development
+.local/
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+*.bak
+*.backup
+
+# Compiled binaries
+moviepilot-go
+main
+
+# Go module cache
+go.sum.backup
+
+# Profiling files
+*.prof
+*.pprof
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Kubernetes
+*.kubeconfig
+
+# Local scripts
+scripts/local/
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Node modules (if any)
+node_modules/
+
+# Python files (if any)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
