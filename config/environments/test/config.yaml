@@ -1,0 +1,28 @@
+# 测试环境配置
+app:
+  name: "MoviePilot-Go"
+  version: "2.8.1"
+  env: "test"
+  debug: true
+
+server:
+  host: "0.0.0.0"
+  port: 3002
+  timeout: 30s
+
+database:
+  type: "sqlite"
+  connection: ":memory:"
+  max_connections: 5
+  log_level: "warn"
+
+redis:
+  host: "localhost"
+  port: 6379
+  db: 1
+  password: ""
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"

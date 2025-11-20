@@ -4,9 +4,8 @@ package database
 import (
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/config"
+	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/config"
 	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/repository/migrations"
 
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
@@ -112,26 +111,6 @@ func Init() error {
 
 	logger.Info("Database connection established successfully")
 
-	// 自动迁移数据库表
-	if err := autoMigrate(); err != nil {
-		logger.Error("Failed to auto migrate database", zap.Error(err))
-		return err
-	}
-
-	return nil
-}
-
-// autoMigrate 自动迁移数据库表
-func autoMigrate() error {
-	logger.Info("Starting database auto migration")
-
-	// 使用迁移模块进行完整的数据库迁移
-	migration := migrations.NewMigration(DB)
-	if err := migration.Run(); err != nil {
-		return err
-	}
-
-	logger.Info("Database auto migration completed")
 	return nil
 }
 

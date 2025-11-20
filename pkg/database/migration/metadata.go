@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/yfh-yun/moviepilot-go/internal/database"
+	"github.com/yfh-yun/moviepilot-go/pkg/database"
 )
 
 // MetadataRegistry 元数据注册表

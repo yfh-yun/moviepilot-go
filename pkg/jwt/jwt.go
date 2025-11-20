@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/spf13/viper"
 )
 
@@ -16,7 +16,7 @@ type Claims struct {
 	UserID   uint   `json:"user_id"`
 	Username string `json:"username"`
 	Role     string `json:"role"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 // TokenPair Token对（访问Token和刷新Token）
@@ -63,7 +63,7 @@ func GenerateToken(userID uint, username, role string) (*TokenPair, error) {
 		UserID:   userID,
 		Username: username,
 		Role:     role,
-		StandardClaims: jwt.StandardClaims{
+		StandardClaims: jwt.RegisteredClaims{
 			ExpiresAt: accessExpire.Unix(),
 			IssuedAt:  time.Now().Unix(),
 			Issuer:    "moviepilot-go",
@@ -82,7 +82,7 @@ func GenerateToken(userID uint, username, role string) (*TokenPair, error) {
 		UserID:   userID,
 		Username: username,
 		Role:     role,
-		StandardClaims: jwt.StandardClaims{
+		StandardClaims: jwt.RegisteredClaims{
 			ExpiresAt: refreshExpire.Unix(),
 			IssuedAt:  time.Now().Unix(),
 			Issuer:    "moviepilot-go",

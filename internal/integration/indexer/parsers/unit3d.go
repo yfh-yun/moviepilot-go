@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/yfh-yun/moviepilot-go/internal/integration/indexer"
-	"github.com/yfh-yun/moviepilot-go/internal/utils"
+	"github.com/yfh-yun/moviepilot-go/pkg/utils"
 )
 
 // Unit3DParser Unit3D站点解析器

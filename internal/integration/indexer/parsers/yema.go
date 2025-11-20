@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/yfh-yun/moviepilot-go/internal/integration/indexer"
-	"github.com/yfh-yun/moviepilot-go/internal/utils"
+	"github.com/yfh-yun/moviepilot-go/pkg/utils"
 )
 
 // YemaParser YEMA站点解析器

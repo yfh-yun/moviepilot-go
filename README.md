@@ -8,6 +8,7 @@ MoviePilot Go 是一个基于Go语言开发的自动化媒体库管理工具，�
 
 ## 技术栈
 
+- **Go版本**: 1.24.4+
 - **Web框架**: Gin
 - **ORM**: GORM
 - **数据库**: PostgreSQL
@@ -73,7 +74,7 @@ moviepilot-go/                       # Go主应用
 
 ### 环境要求
 
-- Go 1.21+
+- Go 1.24.4+
 - Docker & Docker Compose
 - PostgreSQL 14+
 - Redis 6+

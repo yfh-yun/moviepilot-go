@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/yfh-yun/moviepilot-go/internal/config"
+
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -55,6 +55,34 @@ var (
 // contextKey 上下文键类型
 type contextKey string
 
+// getEnvOrDefault 获取环境变量或返回默认值
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// getIntEnvOrDefault 获取整数环境变量或返回默认值
+func getIntEnvOrDefault(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
+}
+
+// getBoolEnvOrDefault 获取布尔环境变量或返回默认值
+func getBoolEnvOrDefault(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
+		}
+	}
+	return defaultValue
+}
+
 // ContextLogger 带上下文的日志结构体
 type ContextLogger struct {
 	logger *zap.Logger
@@ -62,41 +90,6 @@ type ContextLogger struct {
 
 // Init 初始化日志系统
 func Init() error {
-	// 设置默认配置值
-	setDefaultConfig()
-	// 从环境变量读取配置，覆盖配置文件中的值
-	if envLogLevel := os.Getenv(envPrefix + "LEVEL"); envLogLevel != "" {
-		config.Config.Set("log.level", envLogLevel)
-	}
-
-	if envLogFile := os.Getenv(envPrefix + "FILE"); envLogFile != "" {
-		config.Config.Set("log.file_path", envLogFile)
-	}
-
-	if envMaxSize := os.Getenv(envPrefix + "MAX_SIZE"); envMaxSize != "" {
-		if size, err := strconv.Atoi(envMaxSize); err == nil {
-			config.Config.Set("log.max_size", size)
-		}
-	}
-
-	if envMaxBackups := os.Getenv(envPrefix + "MAX_BACKUPS"); envMaxBackups != "" {
-		if backups, err := strconv.Atoi(envMaxBackups); err == nil {
-			config.Config.Set("log.max_backups", backups)
-		}
-	}
-
-	if envMaxAge := os.Getenv(envPrefix + "MAX_AGE"); envMaxAge != "" {
-		if age, err := strconv.Atoi(envMaxAge); err == nil {
-			config.Config.Set("log.max_age", age)
-		}
-	}
-
-	if envCompress := os.Getenv(envPrefix + "COMPRESS"); envCompress != "" {
-		if comp, err := strconv.ParseBool(envCompress); err == nil {
-			compress = comp
-		}
-	}
-
 	// 创建日志配置
 	logConfig := buildLogConfig()
 
@@ -124,10 +117,10 @@ func Init() error {
 
 // buildLogConfig 构建日志配置
 func buildLogConfig() zap.Config {
-	// 获取配置
-	level := config.GetLogLevel()
-	format := config.GetLogFormat()
-	output := config.GetLogOutput()
+	// 从环境变量获取配置，如果没有则使用默认值
+	level := getEnvOrDefault(envPrefix+"LEVEL", "info")
+	format := getEnvOrDefault(envPrefix+"FORMAT", "json")
+	output := getEnvOrDefault(envPrefix+"OUTPUT", "stdout")
 
 	// 创建基础配置
 	logConfig := zap.NewProductionConfig()
@@ -190,23 +183,13 @@ func buildMultiWriterLogger(logConfig *zap.Config) (*zap.Logger, error) {
 	}
 
 	if filePath == "" {
-		filePath = "/var/log/moviepilot/app.log"
+		filePath = getEnvOrDefault(envPrefix+"FILE", "/var/log/moviepilot/app.log")
 	}
 
 	// 配置日志轮转（仅在文件输出时使用）
-	maxSize := config.Config.GetInt("log.max_size")
-	maxBackups := config.Config.GetInt("log.max_backups")
-	maxAge := config.Config.GetInt("log.max_age")
-
-	if maxSize == 0 {
-		maxSize = 100
-	}
-	if maxBackups == 0 {
-		maxBackups = 3
-	}
-	if maxAge == 0 {
-		maxAge = 28
-	}
+	maxSize := getIntEnvOrDefault(envPrefix+"MAX_SIZE", 100)
+	maxBackups := getIntEnvOrDefault(envPrefix+"MAX_BACKUPS", 3)
+	maxAge := getIntEnvOrDefault(envPrefix+"MAX_AGE", 28)
 
 	// 创建文件写入器（使用兼容结构体）
 	fileWriter := &lumberjackLogger{
@@ -214,7 +197,7 @@ func buildMultiWriterLogger(logConfig *zap.Config) (*zap.Logger, error) {
 		MaxSize:    maxSize,
 		MaxBackups: maxBackups,
 		MaxAge:     maxAge,
-		Compress:   compress,
+		Compress:   getBoolEnvOrDefault(envPrefix+"COMPRESS", true),
 		LocalTime:  true,
 	}
 
@@ -238,10 +221,7 @@ func buildMultiWriterLogger(logConfig *zap.Config) (*zap.Logger, error) {
 
 // configureFileOutput 配置文件输出
 func configureFileOutput(logConfig *zap.Config, includeStdout bool) {
-	filePath := config.Config.GetString("log.file_path")
-	if filePath == "" {
-		filePath = "/var/log/moviepilot/app.log"
-	}
+	filePath := getEnvOrDefault(envPrefix+"FILE", "/var/log/moviepilot/app.log")
 
 	// 确保目录存在
 	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
@@ -252,19 +232,9 @@ func configureFileOutput(logConfig *zap.Config, includeStdout bool) {
 	}
 
 	// 配置日志轮转（仅在文件输出时使用）
-	maxSize := config.Config.GetInt("log.max_size")
-	maxBackups := config.Config.GetInt("log.max_backups")
-	maxAge := config.Config.GetInt("log.max_age")
-
-	if maxSize == 0 {
-		maxSize = 100
-	}
-	if maxBackups == 0 {
-		maxBackups = 3
-	}
-	if maxAge == 0 {
-		maxAge = 28
-	}
+	maxSize := getIntEnvOrDefault(envPrefix+"MAX_SIZE", 100)
+	maxBackups := getIntEnvOrDefault(envPrefix+"MAX_BACKUPS", 3)
+	maxAge := getIntEnvOrDefault(envPrefix+"MAX_AGE", 28)
 
 	// 配置输出路径
 	if includeStdout {
@@ -440,31 +410,7 @@ func GetSugar() *zap.SugaredLogger {
 	return Sugar
 }
 
-// setDefaultConfig 设置日志默认配置值
-func setDefaultConfig() {
-	// 如果配置中没有设置，使用默认值
-	if !config.Config.IsSet("log.level") {
-		config.Config.Set("log.level", "info")
-	}
-	if !config.Config.IsSet("log.format") {
-		config.Config.Set("log.format", "json")
-	}
-	if !config.Config.IsSet("log.output") {
-		config.Config.Set("log.output", "file")
-	}
-	if !config.Config.IsSet("log.file_path") {
-		config.Config.Set("log.file_path", "/var/log/moviepilot/app.log")
-	}
-	if !config.Config.IsSet("log.max_size") {
-		config.Config.Set("log.max_size", 100)
-	}
-	if !config.Config.IsSet("log.max_backups") {
-		config.Config.Set("log.max_backups", 3)
-	}
-	if !config.Config.IsSet("log.max_age") {
-		config.Config.Set("log.max_age", 28)
-	}
-}
+
 
 // Sync 同步日志缓冲区
 func Sync() {

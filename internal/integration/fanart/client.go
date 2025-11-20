@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/core/config"
+	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/config"
 	"github.com/yfh-yun/moviepilot-go/pkg/logger"
 	"github.com/yfh-yun/moviepilot-go/pkg/httpclient"
 )

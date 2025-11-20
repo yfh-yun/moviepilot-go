@@ -18,7 +18,7 @@ import (
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/metainfo"
 	"github.com/anacrolix/torrent/storage"
-	"github.com/yfh-yun/moviepilot-go/internal/model"
+	"github.com/yfh-yun/moviepilot-go/internal/models"
 	"github.com/yfh-yun/moviepilot-go/pkg/logger"
 	"go.uber.org/zap"
 )

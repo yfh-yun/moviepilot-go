@@ -15,17 +15,18 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	
-	"github.com/yfh-yun/moviepilot-go/internal/api/handlers"
-	"github.com/yfh-yun/moviepilot-go/internal/api/routes"
-	"github.com/yfh-yun/moviepilot-go/internal/config"
+	"github.com/yfh-yun/moviepilot-go/internal/apis/handlers"
+	"github.com/yfh-yun/moviepilot-go/internal/apis/routes"
+	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/config"
 	"github.com/yfh-yun/moviepilot-go/pkg/cache"
 	"github.com/yfh-yun/moviepilot-go/pkg/database"
 	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/api/middleware"
-	"github.com/yfh-yun/moviepilot-go/internal/repository/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/scheduler"
-	"github.com/yfh-yun/moviepilot-go/internal/service/message"
-	"github.com/yfh-yun/moviepilot-go/internal/service/plugin"
+	"github.com/yfh-yun/moviepilot-go/internal/apis/middlewares"
+	"github.com/yfh-yun/moviepilot-go/internal/repositories"
+	"github.com/yfh-yun/moviepilot-go/internal/repositories/migrations"
+	"github.com/yfh-yun/moviepilot-go/internal/schedulers"
+	"github.com/yfh-yun/moviepilot-go/internal/business/services/message"
+	"github.com/yfh-yun/moviepilot-go/internal/business/services/plugin"
 )
 
 const (
@@ -80,6 +81,11 @@ func main() {
 	// Initialize database
 	if err := database.Init(); err != nil {
 		zapLogger.Fatal("Failed to initialize database", zap.Error(err))
+	}
+
+	// Run database migrations
+	if err := runMigrations(); err != nil {
+		zapLogger.Fatal("Failed to run database migrations", zap.Error(err))
 	}
 
 	// Initialize cache
@@ -231,4 +237,25 @@ func main() {
 	}
 
 	zapLogger.Info("Server exited gracefully")
+}
+
+// runMigrations runs database migrations
+func runMigrations() error {
+	zapLogger := logger.GetLogger()
+	zapLogger.Info("Starting database migrations")
+	
+	// Get database instance
+	db := database.GetDB()
+	if db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+	
+	// Run migrations
+	migration := migrations.NewMigration(db)
+	if err := migration.Run(); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+	
+	zapLogger.Info("Database migrations completed successfully")
+	return nil
 }

@@ -1,0 +1,32 @@
+# 应用配置验证规则
+app:
+  required: true
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+    version:
+      type: string
+      pattern: "^\\d+\\.\\d+\\.\\d+$"
+    env:
+      type: string
+      enum: ["development", "test", "production"]
+    debug:
+      type: boolean
+
+server:
+  required: true
+  type: object
+  properties:
+    host:
+      type: string
+      minLength: 1
+    port:
+      type: integer
+      minimum: 1
+      maximum: 65535
+    timeout:
+      type: string
+      pattern: "^\\d+[smh]$"

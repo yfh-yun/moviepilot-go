@@ -10,7 +10,7 @@ import (
 
 	"github.com/yfh-yun/moviepilot-go/pkg/logger"
 	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/pkg/storage"
+	"github.com/yfh-yun/moviepilot-go/internal/models"
 
 	"go.uber.org/zap"
 )
