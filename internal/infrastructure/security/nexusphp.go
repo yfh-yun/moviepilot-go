@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/logger"
 )
 
 // NexusPHPEncryptor NexusPHP加密器

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/pkg/utils"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/utils"
 )
 
 // SubtitleManager 字幕管理器

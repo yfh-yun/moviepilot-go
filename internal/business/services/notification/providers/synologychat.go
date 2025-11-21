@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/notification"
+	"moviepilot-go/internal/integration/notification"
 )
 
 // SynologyChatProvider SynologyChat通知提供商

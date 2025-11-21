@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/notification"
+	"moviepilot-go/internal/integration/notification"
 )
 
 // FeishuConfig 飞书通知配置

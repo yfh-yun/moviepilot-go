@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/pkg/cache"
-	"github.com/yfh-yun/moviepilot-go/pkg/utils"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/pkg/cache"
+	"moviepilot-go/pkg/utils"
 )
 
 // UserActivity 用户活动记录

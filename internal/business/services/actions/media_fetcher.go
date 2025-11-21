@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services/actions/types"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/business/services/actions/types"
 
 	"go.uber.org/zap"
 )

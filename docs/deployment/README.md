@@ -1,414 +1,618 @@
-# 部署文档
+# 部署指南
 
-## 概述
+## 🚀 部署概览
 
-MoviePilot Go 支持多种部署方式，包括Docker、Kubernetes和传统部署。
+MoviePilot Go 支持多种部署方式，从本地开发到生产环境的完整部署方案。
 
-## 系统要求
+## 📋 环境要求
 
 ### 最低配置
-- CPU: 2核心
-- 内存: 4GB
-- 存储: 20GB
-- 网络: 100Mbps
+- **CPU**: 2 核心
+- **内存**: 4GB RAM
+- **存储**: 20GB 可用空间
+- **操作系统**: Linux (Ubuntu 20.04+, CentOS 8+) / macOS / Windows 10+
 
 ### 推荐配置
-- CPU: 4核心
-- 内存: 8GB
-- 存储: 100GB SSD
-- 网络: 1Gbps
+- **CPU**: 4 核心
+- **内存**: 8GB RAM
+- **存储**: 100GB SSD
+- **网络**: 1Gbps 带宽
 
-### 软件依赖
-- Docker 20.10+
-- Docker Compose 2.0+
-- PostgreSQL 14+
-- Redis 6+
+### 依赖服务
+- **Go**: 1.21+ (开发环境)
+- **Docker**: 20.10+
+- **Docker Compose**: 2.0+
+- **PostgreSQL**: 14+
+- **Redis**: 6+
 
-## Docker部署
+## 🐳 Docker 部署（推荐）
 
-### 快速启动
+### 1. 快速启动
 
-1. 克隆项目
 ```bash
-git clone https://github.com/moviepilot/moviepilot-go.git
+# 克隆项目
+git clone https://github.com/yfh-yun/moviepilot-go.git
 cd moviepilot-go
-```
 
-2. 配置环境
-```bash
-cp configs/config.yaml.sample configs/config.yaml
-# 编辑配置文件
-```
-
-3. 启动服务
-```bash
+# 启动所有服务
 docker-compose -f deployments/docker-compose.yml up -d
-```
-
-4. 验证部署
-```bash
-curl http://localhost:3001/health
-```
-
-### 环境配置
-
-#### 开发环境
-```bash
-docker-compose -f deployments/docker-compose.dev.yml up -d
-```
-
-包含以下服务：
-- PostgreSQL
-- Redis
-- pgAdmin (数据库管理)
-- Redis Commander (Redis管理)
-
-#### 生产环境
-```bash
-# 设置环境变量
-export VERSION=latest
-export DB_PASSWORD=your-secure-password
-export REDIS_PASSWORD=your-secure-password
-export JWT_SECRET=your-jwt-secret
-export API_KEY=your-api-key
-
-# 启动生产环境
-docker-compose -f deployments/docker-compose.prod.yml up -d
-```
-
-### 配置文件
-
-#### docker-compose.yml
-完整的服务编排配置，包含：
-- 应用服务
-- 数据库服务
-- 缓存服务
-- 监控服务
-
-#### docker-compose.prod.yml
-生产环境优化配置：
-- Nginx反向代理
-- 日志轮转
-- 资源限制
-- 安全配置
-
-## Kubernetes部署
-
-### 准备工作
-
-1. 创建命名空间
-```bash
-kubectl create namespace moviepilot
-```
-
-2. 创建ConfigMap
-```bash
-kubectl apply -f deployments/k8s/configmap.yaml
-```
-
-3. 创建Secret
-```bash
-kubectl apply -f deployments/k8s/secret.yaml
-```
-
-### 部署应用
-
-```bash
-kubectl apply -f deployments/k8s/
-```
-
-### 服务清单
-
-- `deployment.yaml`: 应用部署配置
-- `service.yaml`: 服务暴露配置
-- `ingress.yaml`: Ingress配置
-- `configmap.yaml`: 配置文件
-- `secret.yaml`: 敏感信息
-- `pvc.yaml`: 持久卷声明
-
-### 监控
-
-```bash
-# 查看Pod状态
-kubectl get pods -n moviepilot
 
 # 查看服务状态
-kubectl get services -n moviepilot
+docker-compose ps
 
 # 查看日志
-kubectl logs -f deployment/moviepilot-go -n moviepilot
+docker-compose logs -f app
 ```
 
-## 传统部署
+### 2. 生产环境配置
 
-### 二进制部署
-
-1. 下载二进制文件
+创建生产环境配置文件：
 ```bash
-wget https://github.com/moviepilot/moviepilot-go/releases/latest/download/moviepilot-go-linux-amd64.tar.gz
-tar -xzf moviepilot-go-linux-amd64.tar.gz
+cp deployments/docker-compose.prod.yml docker-compose.yml
 ```
 
-2. 安装依赖
+编辑环境变量：
 ```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install postgresql redis-server
-
-# CentOS/RHEL
-sudo yum install postgresql-server redis
+# .env
+POSTGRES_DB=moviepilot
+POSTGRES_USER=moviepilot
+POSTGRES_PASSWORD=your-secure-password
+REDIS_PASSWORD=your-redis-password
+JWT_SECRET=your-jwt-secret-key
 ```
 
-3. 配置数据库
+启动生产环境：
 ```bash
-sudo -u postgres createdb moviepilot
-sudo -u postgres createuser moviepilot
-sudo -u postgres psql -c "ALTER USER moviepilot PASSWORD 'moviepilot123';"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE moviepilot TO moviepilot;"
+docker-compose up -d
 ```
 
-4. 配置应用
-```bash
-cp configs/config.yaml.sample configs/config.yaml
-# 编辑配置文件
+### 3. 服务配置详解
+
+#### docker-compose.yml
+```yaml
+version: '3.8'
+
+services:
+  app:
+    image: moviepilot-go:latest
+    container_name: moviepilot-app
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=moviepilot
+      - DB_USER=moviepilot
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - moviepilot-network
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: moviepilot-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - moviepilot-network
+
+  redis:
+    image: redis:6-alpine
+    container_name: moviepilot-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - moviepilot-network
+
+  plugins:
+    image: moviepilot-plugins:latest
+    container_name: moviepilot-plugins
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - GRPC_SERVER_HOST=0.0.0.0
+      - GRPC_SERVER_PORT=5000
+    volumes:
+      - ./plugins:/app/plugins
+    networks:
+      - moviepilot-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: moviepilot-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    networks:
+      - moviepilot-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  moviepilot-network:
+    driver: bridge
 ```
 
-5. 启动应用
-```bash
-./moviepilot-go
-```
+## 🔧 本地开发部署
 
-### 源码编译部署
+### 1. 环境准备
 
-1. 安装Go环境
 ```bash
-# 下载并安装Go 1.21+
-wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
-export PATH=$PATH:/usr/local/go/bin
-```
+# 安装 Go (使用 gvm 推荐)
+curl -sSL https://git.io/g-install | sh
+gvm install go1.21 -B
+gvm use go1.21 --default
 
-2. 克隆并编译
-```bash
-git clone https://github.com/moviepilot/moviepilot-go.git
-cd moviepilot-go
+# 安装依赖
 go mod download
-go build -o moviepilot-go cmd/server/main.go
+
+# 安装 PostgreSQL
+sudo apt-get install postgresql postgresql-contrib
+
+# 安装 Redis
+sudo apt-get install redis-server
 ```
 
-3. 部署步骤同二进制部署
+### 2. 数据库设置
 
-## 系统服务配置
-
-### Systemd服务
-
-创建服务文件 `/etc/systemd/system/moviepilot-go.service`:
-
-```ini
-[Unit]
-Description=MoviePilot Go
-After=network.target postgresql.service redis.service
-
-[Service]
-Type=simple
-User=moviepilot
-Group=moviepilot
-WorkingDirectory=/opt/moviepilot-go
-ExecStart=/opt/moviepilot-go/moviepilot-go
-Restart=always
-RestartSec=5
-Environment=GIN_MODE=release
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启动服务：
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable moviepilot-go
-sudo systemctl start moviepilot-go
+# 创建数据库
+sudo -u postgres createdb moviepilot
+
+# 创建用户
+sudo -u postgres createuser moviepilot
+
+# 设置密码
+sudo -u postgres psql
+ALTER USER moviepilot PASSWORD 'your-password';
+GRANT ALL PRIVILEGES ON DATABASE moviepilot TO moviepilot;
+\q
 ```
 
-## 负载均衡
+### 3. 配置文件
 
-### Nginx配置
+```bash
+# 复制配置文件
+cp configs/config.yaml.sample configs/config.yaml
 
-```nginx
-upstream moviepilot_go {
-    server 127.0.0.1:3001;
-    server 127.0.0.1:3002;
-    server 127.0.0.1:3003;
+# 编辑配置
+vim configs/config.yaml
+```
+
+配置示例：
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 3001
+  mode: "debug"  # debug, release
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "moviepilot"
+  user: "moviepilot"
+  password: "your-password"
+  ssl_mode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 100
+
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+
+jwt:
+  secret: "your-jwt-secret"
+  expires_in: 24h
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+
+plugins:
+  enabled: true
+  grpc_address: "localhost:5000"
+```
+
+### 4. 启动应用
+
+```bash
+# 启动主应用
+go run cmd/server/main.go
+
+# 启动插件服务 (新终端)
+cd python-plugins
+python cmd/server/main.py
+```
+
+## ☁️ 云平台部署
+
+### Kubernetes 部署
+
+#### 1. 命名空间和配置
+```yaml
+# namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: moviepilot
+---
+# configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: moviepilot-config
+  namespace: moviepilot
+data:
+  config.yaml: |
+    server:
+      host: "0.0.0.0"
+      port: 3001
+    database:
+      host: "postgres-service"
+      port: 5432
+      name: "moviepilot"
+      user: "moviepilot"
+    redis:
+      host: "redis-service"
+      port: 6379
+```
+
+#### 2. 数据库部署
+```yaml
+# postgres-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: moviepilot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:14
+        env:
+        - name: POSTGRES_DB
+          value: "moviepilot"
+        - name: POSTGRES_USER
+          value: "moviepilot"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: moviepilot-secrets
+              key: postgres-password
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: moviepilot
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+```
+
+#### 3. 应用部署
+```yaml
+# app-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moviepilot-app
+  namespace: moviepilot
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: moviepilot-app
+  template:
+    metadata:
+      labels:
+        app: moviepilot-app
+    spec:
+      containers:
+      - name: app
+        image: moviepilot-go:latest
+        ports:
+        - containerPort: 3001
+        env:
+        - name: DB_HOST
+          value: "postgres-service"
+        - name: REDIS_HOST
+          value: "redis-service"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/configs
+      volumes:
+      - name: config-volume
+        configMap:
+          name: moviepilot-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: moviepilot-service
+  namespace: moviepilot
+spec:
+  selector:
+    app: moviepilot-app
+  ports:
+  - port: 80
+    targetPort: 3001
+  type: LoadBalancer
+```
+
+### AWS ECS 部署
+
+#### 1. 任务定义
+```json
+{
+  "family": "moviepilot",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::account:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::account:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "moviepilot-app",
+      "image": "your-account.dkr.ecr.region.amazonaws.com/moviepilot-go:latest",
+      "portMappings": [
+        {
+          "containerPort": 3001,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DB_HOST",
+          "value": "your-rds-endpoint"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/moviepilot",
+          "awslogs-region": "us-west-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
 }
+```
 
+## 🔒 安全配置
+
+### 1. SSL/TLS 配置
+
+#### Nginx 配置
+```nginx
 server {
-    listen 80;
+    listen 443 ssl http2;
     server_name your-domain.com;
-    
+
+    ssl_certificate /etc/nginx/ssl/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
+
     location / {
-        proxy_pass http://moviepilot_go;
+        proxy_pass http://app:3001;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
+
+server {
+    listen 80;
+    server_name your-domain.com;
+    return 301 https://$server_name$request_uri;
+}
 ```
 
-## 数据库优化
-
-### PostgreSQL优化
-
-配置文件 `postgresql.conf`:
-
-```ini
-# 内存配置
-shared_buffers = 256MB
-effective_cache_size = 1GB
-work_mem = 4MB
-maintenance_work_mem = 64MB
-
-# 连接配置
-max_connections = 100
-listen_addresses = '*'
-
-# 日志配置
-log_statement = 'all'
-log_duration = on
-log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
-
-# 性能配置
-checkpoint_completion_target = 0.9
-wal_buffers = 16MB
-default_statistics_target = 100
-```
-
-### Redis优化
-
-配置文件 `redis.conf`:
-
-```ini
-# 内存配置
-maxmemory 512mb
-maxmemory-policy allkeys-lru
-
-# 持久化配置
-save 900 1
-save 300 10
-save 60 10000
-
-# 网络配置
-tcp-keepalive 300
-timeout 0
-
-# 安全配置
-requirepass your-redis-password
-```
-
-## 监控和日志
-
-### Prometheus监控
-
-1. 配置Prometheus抓取应用指标
-2. 配置Grafana仪表板
-3. 设置告警规则
-
-### 日志管理
-
-1. 配置日志轮转
-2. 集中化日志收集
-3. 日志分析和告警
-
-## 备份策略
-
-### 数据库备份
-
+### 2. 防火墙配置
 ```bash
-# 每日备份
-pg_dump -h localhost -U moviepilot moviepilot | gzip > backup_$(date +%Y%m%d).sql.gz
+# UFW 配置
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
 
+### 3. 密钥管理
+```bash
+# 生成 JWT 密钥
+openssl rand -base64 32
+
+# 生成数据库密码
+openssl rand -base64 16
+
+# 使用 Kubernetes Secrets
+kubectl create secret generic moviepilot-secrets \
+  --from-literal=jwt-secret=$(openssl rand -base64 32) \
+  --from-literal=postgres-password=$(openssl rand -base64 16) \
+  --from-literal=redis-password=$(openssl rand -base64 16)
+```
+
+## 📊 监控和日志
+
+### 1. Prometheus 配置
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'moviepilot'
+    static_configs:
+      - targets: ['app:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+```
+
+### 2. Grafana 仪表板
+- 系统性能监控
+- API 请求统计
+- 数据库性能指标
+- 错误率和响应时间
+
+### 3. 日志聚合
+```yaml
+# filebeat.yml
+filebeat.inputs:
+- type: container
+  paths:
+    - '/var/lib/docker/containers/*/*.log'
+  processors:
+    - add_docker_metadata:
+        host: "unix:///var/run/docker.sock"
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  index: "moviepilot-%{+yyyy.MM.dd}"
+```
+
+## 🔄 备份和恢复
+
+### 1. 数据库备份
+```bash
 # 自动备份脚本
 #!/bin/bash
 BACKUP_DIR="/backup/postgres"
 DATE=$(date +%Y%m%d_%H%M%S)
-pg_dump -h localhost -U moviepilot moviepilot | gzip > $BACKUP_DIR/moviepilot_$DATE.sql.gz
-find $BACKUP_DIR -name "*.sql.gz" -mtime +7 -delete
+
+docker exec postgres pg_dump -U moviepilot moviepilot > $BACKUP_DIR/backup_$DATE.sql
+
+# 保留最近 7 天的备份
+find $BACKUP_DIR -name "backup_*.sql" -mtime +7 -delete
 ```
 
-### 配置备份
-
+### 2. 配置备份
 ```bash
 # 备份配置文件
 tar -czf configs_backup_$(date +%Y%m%d).tar.gz configs/
+
+# 备份插件数据
+tar -czf plugins_backup_$(date +%Y%m%d).tar.gz plugins/
 ```
 
-## 安全配置
+## 🚨 故障排查
 
-### 防火墙配置
+### 1. 常见问题
 
+#### 应用无法启动
 ```bash
-# 开放必要端口
-sudo ufw allow 22    # SSH
-sudo ufw allow 80    # HTTP
-sudo ufw allow 443   # HTTPS
-sudo ufw enable
+# 检查日志
+docker-compose logs app
+
+# 检查端口占用
+netstat -tulpn | grep 3001
+
+# 检查配置文件
+docker-compose config
 ```
 
-### SSL证书
-
+#### 数据库连接失败
 ```bash
-# 使用Let's Encrypt
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
+# 测试数据库连接
+docker exec postgres psql -U moviepilot -d moviepilot -c "SELECT 1;"
+
+# 检查网络连接
+docker exec app ping postgres
 ```
 
-## 故障排除
+### 2. 性能调优
 
-### 常见问题
+#### 数据库优化
+```sql
+-- 创建索引
+CREATE INDEX idx_media_title ON media(title);
+CREATE INDEX idx_media_type ON media(type);
+CREATE INDEX idx_transfers_status ON transfers(status);
 
-1. **应用无法启动**
-   - 检查配置文件
-   - 检查数据库连接
-   - 查看应用日志
+-- 分析查询性能
+EXPLAIN ANALYZE SELECT * FROM media WHERE title LIKE '%keyword%';
+```
 
-2. **数据库连接失败**
-   - 检查数据库服务状态
-   - 验证连接参数
-   - 检查网络连通性
-
-3. **性能问题**
-   - 检查系统资源
-   - 分析慢查询
-   - 优化数据库配置
-
-### 日志分析
-
+#### 应用优化
 ```bash
-# 查看应用日志
-tail -f logs/app.log
+# 调整 Go 运行时参数
+export GOMAXPROCS=4
+export GOGC=100
 
-# 查看数据库日志
-tail -f /var/log/postgresql/postgresql-14-main.log
-
-# 查看系统日志
-journalctl -u moviepilot-go -f
+# 调整连接池大小
+# configs/config.yaml
+database:
+  max_idle_conns: 20
+  max_open_conns: 200
+  conn_max_lifetime: "1h"
 ```
 
-## 升级指南
+---
 
-### 版本升级
-
-1. 备份数据
-2. 停止服务
-3. 更新代码
-4. 运行数据库迁移
-5. 重启服务
-6. 验证功能
-
-### 回滚操作
-
-1. 停止服务
-2. 恢复代码
-3. 恢复数据库
-4. 重启服务
-5. 验证功能
+**注意**: 生产环境部署前请务必进行充分测试，并制定详细的运维预案。

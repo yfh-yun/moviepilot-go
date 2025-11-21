@@ -9,10 +9,10 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/emby"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/jellyfin"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/plex"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/integration/emby"
+	"moviepilot-go/internal/integration/jellyfin"
+	"moviepilot-go/internal/integration/plex"
+	"moviepilot-go/internal/repositories"
 )
 
 // Service 表示媒体服务器服务

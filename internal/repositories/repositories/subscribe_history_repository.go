@@ -1,45 +1,34 @@
 package repositories
 
 import (
+	"context"
 	"errors"
-	"fmt"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"time"
-
+	
 	"gorm.io/gorm"
+	
+	"moviepilot-go/internal/repositories/interfaces"
+	"moviepilot-go/internal/models"
 )
 
-// subscribeHistoryRepository 订阅历史仓储实现
-type subscribeHistoryRepository struct {
+// SubscribeHistoryRepositoryImpl 订阅历史仓储实现
+type SubscribeHistoryRepositoryImpl struct {
 	db *gorm.DB
 }
 
-// NewSubscribeHistoryRepository 创建订阅历史仓储
+// NewSubscribeHistoryRepository 创建订阅历史仓储实例
 func NewSubscribeHistoryRepository(db *gorm.DB) interfaces.SubscribeHistoryRepository {
-	return &subscribeHistoryRepository{db: db}
+	return &SubscribeHistoryRepositoryImpl{db: db}
 }
 
 // Create 创建订阅历史
-func (r *subscribeHistoryRepository) Create(history *model.SubscribeHistory) error {
-	if history == nil {
-		return errors.New("subscribe history cannot be nil")
-	}
-	return r.db.Create(history).Error
-}
-
-// BatchCreate 批量创建订阅历史
-func (r *subscribeHistoryRepository) BatchCreate(histories []*model.SubscribeHistory) error {
-	if len(histories) == 0 {
-		return nil
-	}
-	return r.db.CreateInBatches(histories, 100).Error
+func (r *SubscribeHistoryRepositoryImpl) Create(ctx context.Context, history *models.SubscribeHistory) error {
+	return r.db.WithContext(ctx).Create(history).Error
 }
 
 // GetByID 根据ID获取订阅历史
-func (r *subscribeHistoryRepository) GetByID(id uint) (*model.SubscribeHistory, error) {
-	var history model.SubscribeHistory
-	err := r.db.First(&history, id).Error
+func (r *SubscribeHistoryRepositoryImpl) GetByID(ctx context.Context, id string) (*models.SubscribeHistory, error) {
+	var history models.SubscribeHistory
+	err := r.db.WithContext(ctx).First(&history, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -50,110 +39,87 @@ func (r *subscribeHistoryRepository) GetByID(id uint) (*model.SubscribeHistory, 
 }
 
 // GetBySubscribeID 根据订阅ID获取历史
-func (r *subscribeHistoryRepository) GetBySubscribeID(subscribeID uint) ([]*model.SubscribeHistory, error) {
-	var histories []*model.SubscribeHistory
-	err := r.db.Where("subscribe_id = ?", subscribeID).Order("created_at DESC").Find(&histories).Error
-	return histories, err
-}
-
-// GetByDownloadHash 根据下载Hash获取历史
-func (r *subscribeHistoryRepository) GetByDownloadHash(downloadHash string) ([]*model.SubscribeHistory, error) {
-	var histories []*model.SubscribeHistory
-	err := r.db.Where("download_hash = ?", downloadHash).Order("created_at DESC").Find(&histories).Error
-	return histories, err
-}
-
-// GetByDateRange 根据日期范围获取历史
-func (r *subscribeHistoryRepository) GetByDateRange(startDate, endDate time.Time) ([]*model.SubscribeHistory, error) {
-	var histories []*model.SubscribeHistory
-	err := r.db.Where("created_at BETWEEN ? AND ?", startDate, endDate).
-		Order("created_at DESC").Find(&histories).Error
-	return histories, err
-}
-
-// GetByStatus 根据状态获取历史
-func (r *subscribeHistoryRepository) GetByStatus(status string) ([]*model.SubscribeHistory, error) {
-	var histories []*model.SubscribeHistory
-	err := r.db.Where("status = ?", status).Order("created_at DESC").Find(&histories).Error
-	return histories, err
-}
-
-// GetByType 根据类型获取历史
-func (r *subscribeHistoryRepository) GetByType(subscribeType string) ([]*model.SubscribeHistory, error) {
-	var histories []*model.SubscribeHistory
-	err := r.db.Where("type = ?", subscribeType).Order("created_at DESC").Find(&histories).Error
-	return histories, err
-}
-
-// Update 更新订阅历史
-func (r *subscribeHistoryRepository) Update(history *model.SubscribeHistory) error {
-	if history == nil {
-		return errors.New("subscribe history cannot be nil")
-	}
-	return r.db.Save(history).Error
-}
-
-// UpdateStatus 更新订阅历史状态
-func (r *subscribeHistoryRepository) UpdateStatus(id uint, status string) error {
-	result := r.db.Model(&model.SubscribeHistory{}).Where("id = ?", id).Update("status", status)
-	if result.Error != nil {
-		return fmt.Errorf("failed to update subscribe history status: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("subscribe history with id %d not found", id)
-	}
-	return nil
-}
-
-// Delete 删除订阅历史
-func (r *subscribeHistoryRepository) Delete(id uint) error {
-	return r.db.Delete(&model.SubscribeHistory{}, id).Error
-}
-
-// DeleteBySubscribeID 根据订阅ID删除历史
-func (r *subscribeHistoryRepository) DeleteBySubscribeID(subscribeID uint) error {
-	return r.db.Where("subscribe_id = ?", subscribeID).Delete(&model.SubscribeHistory{}).Error
-}
-
-// DeleteByDateRange 根据日期范围删除历史
-func (r *subscribeHistoryRepository) DeleteByDateRange(startDate, endDate time.Time) error {
-	return r.db.Where("created_at BETWEEN ? AND ?", startDate, endDate).Delete(&model.SubscribeHistory{}).Error
-}
-
-// List 分页获取订阅历史列表
-func (r *subscribeHistoryRepository) List(offset, limit int) ([]*model.SubscribeHistory, int64, error) {
-	var histories []*model.SubscribeHistory
+func (r *SubscribeHistoryRepositoryImpl) GetBySubscribeID(ctx context.Context, subscribeID string, params interfaces.ListSubscribeHistoryParams) ([]*models.SubscribeHistory, int64, error) {
+	var histories []*models.SubscribeHistory
 	var total int64
-
-	err := r.db.Model(&model.SubscribeHistory{}).Count(&total).Error
-	if err != nil {
+	
+	query := r.db.WithContext(ctx).Model(&models.SubscribeHistory{}).Where("subscribe_id = ?", subscribeID)
+	
+	// 添加过滤条件
+	if params.Status != "" {
+		query = query.Where("status = ?", params.Status)
+	}
+	if params.DateFrom != "" {
+		query = query.Where("created_at >= ?", params.DateFrom)
+	}
+	if params.DateTo != "" {
+		query = query.Where("created_at <= ?", params.DateTo)
+	}
+	
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-
-	err = r.db.Offset(offset).Limit(limit).Order("created_at DESC").Find(&histories).Error
+	
+	// 分页查询
+	offset := (params.Page - 1) * params.PageSize
+	err := query.Offset(offset).Limit(params.PageSize).Order("created_at DESC").Find(&histories).Error
+	
 	return histories, total, err
 }
 
-// Count 统计订阅历史数量
-func (r *subscribeHistoryRepository) Count() (int64, error) {
-	var count int64
-	err := r.db.Model(&model.SubscribeHistory{}).Count(&count).Error
-	return count, err
+// Update 更新订阅历史
+func (r *SubscribeHistoryRepositoryImpl) Update(ctx context.Context, history *models.SubscribeHistory) error {
+	return r.db.WithContext(ctx).Save(history).Error
 }
 
-// CountBySubscribeID 根据订阅ID统计数量
-func (r *subscribeHistoryRepository) CountBySubscribeID(subscribeID uint) (int64, error) {
-	var count int64
-	err := r.db.Model(&model.SubscribeHistory{}).Where("subscribe_id = ?", subscribeID).Count(&count).Error
-	return count, err
+// Delete 删除订阅历史
+func (r *SubscribeHistoryRepositoryImpl) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Delete(&models.SubscribeHistory{}, "id = ?", id).Error
 }
 
-// GetLatest 获取最新的订阅历史
-func (r *subscribeHistoryRepository) GetLatest(subscribeID uint, limit int) ([]*model.SubscribeHistory, error) {
-	var histories []*model.SubscribeHistory
-	err := r.db.Where("subscribe_id = ?", subscribeID).
-		Order("created_at DESC").
-		Limit(limit).
-		Find(&histories).Error
-	return histories, err
+// List 获取订阅历史列表
+func (r *SubscribeHistoryRepositoryImpl) List(ctx context.Context, params interfaces.ListSubscribeHistoryParams) ([]*models.SubscribeHistory, int64, error) {
+	var histories []*models.SubscribeHistory
+	var total int64
+	
+	query := r.db.WithContext(ctx).Model(&models.SubscribeHistory{})
+	
+	// 添加过滤条件
+	if params.SubscribeID != "" {
+		query = query.Where("subscribe_id = ?", params.SubscribeID)
+	}
+	if params.Status != "" {
+		query = query.Where("status = ?", params.Status)
+	}
+	if params.DateFrom != "" {
+		query = query.Where("created_at >= ?", params.DateFrom)
+	}
+	if params.DateTo != "" {
+		query = query.Where("created_at <= ?", params.DateTo)
+	}
+	
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	
+	// 分页查询
+	offset := (params.Page - 1) * params.PageSize
+	err := query.Offset(offset).Limit(params.PageSize).Order("created_at DESC").Find(&histories).Error
+	
+	return histories, total, err
+}
+
+// GetLatestBySubscribeID 获取订阅的最新历史
+func (r *SubscribeHistoryRepositoryImpl) GetLatestBySubscribeID(ctx context.Context, subscribeID string) (*models.SubscribeHistory, error) {
+	var history models.SubscribeHistory
+	err := r.db.WithContext(ctx).Where("subscribe_id = ?", subscribeID).Order("created_at DESC").First(&history).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &history, nil
 }

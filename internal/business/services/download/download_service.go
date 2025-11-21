@@ -4,11 +4,11 @@ package download
 import (
 	"errors"
 	"fmt"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/qbittorrent"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/transmission"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/internal/integration/qbittorrent"
+	"moviepilot-go/internal/integration/transmission"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/repositories/interfaces"
+	"moviepilot-go/internal/models"
 	"strings"
 	"time"
 )

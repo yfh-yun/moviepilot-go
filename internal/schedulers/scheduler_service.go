@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/business/services"
 
 	"go.uber.org/zap"
 )

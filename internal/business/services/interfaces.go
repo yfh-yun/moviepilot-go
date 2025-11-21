@@ -2,269 +2,188 @@ package services
 
 import (
 	"context"
-	"errors"
+	"moviepilot-go/internal/business/domains"
+	"moviepilot-go/internal/models"
 	"time"
-
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
 )
+
+// UserService 用户服务接口
+type UserService interface {
+	CreateUser(ctx context.Context, user *domains.User) error
+	GetUserByID(ctx context.Context, id uint) (*domains.User, error)
+	GetUserByUsername(ctx context.Context, username string) (*domains.User, error)
+	UpdateUser(ctx context.Context, user *domains.User) error
+	DeleteUser(ctx context.Context, id uint) error
+	AuthenticateUser(ctx context.Context, username, password string) (*domains.User, error)
+	ChangePassword(ctx context.Context, userID uint, oldPassword, newPassword string) error
+}
+
+// MediaService 媒体服务接口
+type MediaService interface {
+	CreateMedia(ctx context.Context, media *domains.Media) error
+	GetMediaByID(ctx context.Context, id uint) (*domains.Media, error)
+	GetMediaByTMDBID(ctx context.Context, tmdbID int, mediaType string) (*domains.Media, error)
+	UpdateMedia(ctx context.Context, media *domains.Media) error
+	DeleteMedia(ctx context.Context, id uint) error
+	SearchMedia(ctx context.Context, criteria domains.SearchCriteria) ([]domains.Media, int, error)
+	GetPopularMedia(ctx context.Context, mediaType string, limit int) ([]domains.Media, error)
+	GetLatestMedia(ctx context.Context, mediaType string, limit int) ([]domains.Media, error)
+}
 
 // SubscribeService 订阅服务接口
 type SubscribeService interface {
-	// 基础接口方法可以根据需要定义
-	// 这里先定义空接口，由具体实现类实现
+	CreateSubscribe(ctx context.Context, subscribe *domains.Subscribe) error
+	GetSubscribeByID(ctx context.Context, id uint) (*domains.Subscribe, error)
+	GetSubscribesByUserID(ctx context.Context, userID uint) ([]domains.Subscribe, error)
+	UpdateSubscribe(ctx context.Context, subscribe *domains.Subscribe) error
+	DeleteSubscribe(ctx context.Context, id uint) error
+	GetActiveSubscribes(ctx context.Context) ([]domains.Subscribe, error)
+	ProcessSubscriptions(ctx context.Context) error
+	RenewSubscription(ctx context.Context, id uint) error
+}
+
+// TransferService 转移服务接口
+type TransferService interface {
+	CreateTransfer(ctx context.Context, transfer *domains.Transfer) error
+	GetTransferByID(ctx context.Context, id uint) (*domains.Transfer, error)
+	GetTransfersByUserID(ctx context.Context, userID uint) ([]domains.Transfer, error)
+	UpdateTransfer(ctx context.Context, transfer *domains.Transfer) error
+	DeleteTransfer(ctx context.Context, id uint) error
+	GetActiveTransfers(ctx context.Context) ([]domains.Transfer, error)
+	ProcessTransfer(ctx context.Context, transferID uint) error
+	CancelTransfer(ctx context.Context, transferID uint) error
+	GetTransferHistory(ctx context.Context, filters map[string]interface{}) ([]domains.Transfer, int, error)
 }
 
 // DownloadService 下载服务接口
 type DownloadService interface {
-	// ListDownloads 获取下载任务列表
-	ListDownloads(ctx context.Context, params ListDownloadsParams) ([]*DownloadTask, int64, error)
-	
-	// GetDownloadDetail 获取下载任务详情
-	GetDownloadDetail(ctx context.Context, taskID string) (*DownloadTask, error)
-	
-	// CreateDownload 创建下载任务
-	CreateDownload(ctx context.Context, params CreateDownloadParams) (*DownloadTask, error)
-	
-	// DeleteDownload 删除下载任务
-	DeleteDownload(ctx context.Context, taskID string) error
-	
-	// PauseDownload 暂停下载任务
-	PauseDownload(ctx context.Context, taskID string) error
-	
-	// ResumeDownload 恢复下载任务
-	ResumeDownload(ctx context.Context, taskID string) error
-	
-	// GetDownloadStats 获取下载统计信息
-	GetDownloadStats(ctx context.Context) (*DownloadStats, error)
-	
-	// GetDownloadSpeed 获取下载速度
-	GetDownloadSpeed(ctx context.Context) (*DownloadSpeed, error)
-	
-	// ClearCompletedDownloads 清理已完成的下载任务
-	ClearCompletedDownloads(ctx context.Context) error
-	
-	// BatchDeleteDownloads 批量删除下载任务
-	BatchDeleteDownloads(ctx context.Context, taskIDs []string) error
+	StartDownload(ctx context.Context, url string, config domains.DownloadConfig) (*domains.Transfer, error)
+	PauseDownload(ctx context.Context, downloadID uint) error
+	ResumeDownload(ctx context.Context, downloadID uint) error
+	CancelDownload(ctx context.Context, downloadID uint) error
+	GetDownloadStatus(ctx context.Context, downloadID uint) (*domains.Transfer, error)
+	GetActiveDownloads(ctx context.Context) ([]domains.Transfer, error)
+	CleanupCompletedDownloads(ctx context.Context) error
 }
 
-// DownloadTask 下载任务
-type DownloadTask struct {
-	ID         string    `json:"id"`
-	Title      string    `json:"title"`
-	Type       string    `json:"type"`
-	Status     string    `json:"status"`
-	Progress   float64   `json:"progress"`
-	FileSize   int64     `json:"file_size"`
-	Downloaded int64     `json:"downloaded"`
-	Speed      int64     `json:"speed"`
-	ETA        string    `json:"eta"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+// NotificationService 通知服务接口
+type NotificationService interface {
+	SendNotification(ctx context.Context, userID uint, title, message string, config domains.NotificationConfig) error
+	SendBulkNotification(ctx context.Context, userIDs []uint, title, message string, config domains.NotificationConfig) error
+	GetNotificationHistory(ctx context.Context, userID uint, limit int) ([]models.Notification, error)
+	MarkNotificationAsRead(ctx context.Context, notificationID uint) error
+	GetUnreadNotifications(ctx context.Context, userID uint) ([]models.Notification, error)
 }
 
-// ListDownloadsParams 获取下载列表参数
-type ListDownloadsParams struct {
-	Status string `json:"status"`
-	Type   string `json:"type"`
-	Page   int    `json:"page"`
-	Limit  int    `json:"limit"`
-}
-
-// CreateDownloadParams 创建下载任务参数
-type CreateDownloadParams struct {
-	Title    string `json:"title"`
-	Type     string `json:"type"`
-	URL      string `json:"url"`
-	SavePath string `json:"save_path"`
-}
-
-// DownloadStats 下载统计信息
-type DownloadStats struct {
-	TotalTasks       int64   `json:"total_tasks"`
-	ActiveTasks      int64   `json:"active_tasks"`
-	CompletedTasks   int64   `json:"completed_tasks"`
-	FailedTasks      int64   `json:"failed_tasks"`
-	TotalDownloaded  int64   `json:"total_downloaded"`
-	TotalSpeed       float64 `json:"total_speed"`
-}
-
-// DownloadSpeed 下载速度信息
-type DownloadSpeed struct {
-	CurrentSpeed int64   `json:"current_speed"`
-	AverageSpeed float64 `json:"average_speed"`
-	PeakSpeed    int64   `json:"peak_speed"`
-}
-
-// MessageService 消息服务接口
-type MessageService interface {
-	SendMessage(ctx context.Context, title, content string, messageType string, userIDs []uint) error
-	GetMessages(ctx context.Context, userID uint, page, size int) ([]*models.Message, int64, error)
-	MarkAsRead(ctx context.Context, messageID, userID uint) error
-	MarkAllAsRead(ctx context.Context, userID uint) error
-	DeleteMessage(ctx context.Context, messageID, userID uint) error
-	GetUnreadCount(ctx context.Context, userID uint) (int64, error)
+// SearchService 搜索服务接口
+type SearchService interface {
+	SearchMedia(ctx context.Context, query string, filters map[string]interface{}) ([]domains.Media, error)
+	SearchTorrents(ctx context.Context, query string, filters map[string]interface{}) ([]models.TorrentInfo, error)
+	GetSearchSuggestions(ctx context.Context, query string) ([]string, error)
+	GetPopularSearches(ctx context.Context) ([]string, error)
+	SaveSearchHistory(ctx context.Context, userID uint, query string) error
+	GetSearchHistory(ctx context.Context, userID uint, limit int) ([]models.SearchHistory, error)
 }
 
 // PluginService 插件服务接口
 type PluginService interface {
-	InstallPlugin(ctx context.Context, pluginID string) error
-	UninstallPlugin(ctx context.Context, pluginID string) error
-	EnablePlugin(ctx context.Context, pluginID string) error
-	DisablePlugin(ctx context.Context, pluginID string) error
-	GetPlugin(ctx context.Context, pluginID string) (*models.Plugin, error)
-	ListPlugins(ctx context.Context, enabledOnly bool) ([]*models.Plugin, error)
-	UpdatePluginConfig(ctx context.Context, pluginID string, config map[string]interface{}) error
+	LoadPlugin(ctx context.Context, pluginID string) error
+	UnloadPlugin(ctx context.Context, pluginID string) error
+	GetLoadedPlugins(ctx context.Context) ([]models.PluginInfo, error)
+	GetPluginInfo(ctx context.Context, pluginID string) (*models.PluginInfo, error)
+	ExecutePluginAction(ctx context.Context, pluginID, action string, params map[string]interface{}) (interface{}, error)
 	GetPluginConfig(ctx context.Context, pluginID string) (map[string]interface{}, error)
-	ExecutePlugin(ctx context.Context, pluginID string, data map[string]interface{}) (map[string]interface{}, error)
+	UpdatePluginConfig(ctx context.Context, pluginID string, config map[string]interface{}) error
 }
 
-// Note 备注信息
-type Note struct {
-	ID        string `json:"id"`
-	Content   string `json:"content"`
-	UserID    string `json:"user_id"`
-	TargetID  string `json:"target_id"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+// WorkflowService 工作流服务接口
+type WorkflowService interface {
+	CreateWorkflow(ctx context.Context, workflow *domains.Workflow) error
+	GetWorkflowByID(ctx context.Context, id uint) (*domains.Workflow, error)
+	GetWorkflowsByUserID(ctx context.Context, userID uint) ([]domains.Workflow, error)
+	UpdateWorkflow(ctx context.Context, workflow *domains.Workflow) error
+	DeleteWorkflow(ctx context.Context, id uint) error
+	ExecuteWorkflow(ctx context.Context, workflowID uint, triggerData map[string]interface{}) error
+	GetWorkflowExecutions(ctx context.Context, workflowID uint) ([]domains.WorkflowExecution, error)
+	ScheduleWorkflow(ctx context.Context, workflowID uint, schedule string) error
 }
 
-// 下载相关错误
-var (
-	ErrDownloadNotFound = errors.New("下载任务不存在")
-	ErrDownloadExists   = errors.New("下载任务已存在")
-	ErrInvalidStatus     = errors.New("无效的下载状态")
-)
-
-// 新增的业务逻辑接口
-
-// DownloadStatusMonitor 下载状态监控接口
-type DownloadStatusMonitor interface {
-	MonitorDownloadStatus(ctx context.Context, request *DownloadStatusRequest) (*DownloadStatusResponse, error)
+// SystemService 系统服务接口
+type SystemService interface {
+	GetSystemInfo(ctx context.Context) (map[string]interface{}, error)
+	GetSystemStats(ctx context.Context) (map[string]interface{}, error)
+	GetSystemHealth(ctx context.Context) (map[string]interface{}, error)
+	PerformSystemMaintenance(ctx context.Context, task string) error
+	GetSystemLogs(ctx context.Context, level string, limit int) ([]models.SystemLog, error)
+	CleanupSystem(ctx context.Context) error
+	BackupSystem(ctx context.Context) (string, error)
+	RestoreSystem(ctx context.Context, backupPath string) error
 }
 
-// WorkflowManager 工作流管理接口
-type WorkflowManager interface {
-	CacheWorkflow(ctx context.Context, workflowID, userID string) error
-	GetCachedWorkflow(ctx context.Context, workflowID, userID string) (interface{}, bool)
-	InvalidateWorkflowCache(ctx context.Context, workflowID, userID string) error
+// StorageService 存储服务接口
+type StorageService interface {
+	GetStorageInfo(ctx context.Context, storageType string) (domains.StorageConfig, error)
+	UploadFile(ctx context.Context, storageType string, filePath string, data []byte) error
+	DownloadFile(ctx context.Context, storageType string, filePath string) ([]byte, error)
+	DeleteFile(ctx context.Context, storageType string, filePath string) error
+	ListFiles(ctx context.Context, storageType string, path string) ([]models.FileInfo, error)
+	GetFileStats(ctx context.Context, storageType string) (map[string]interface{}, error)
+	MigrateFiles(ctx context.Context, fromStorage, toStorage string) error
 }
 
-// SubscribeManager 订阅管理接口
-type SubscribeManager interface {
-	CacheSubscription(ctx context.Context, sub *repository.Subscribe) error
-	GetCachedSubscription(ctx context.Context, subID string) (*repository.Subscribe, bool)
-	InvalidateSubscriptionCache(ctx context.Context, subID string) error
-	GetSubscriptionStatus(ctx context.Context, subID string) (string, error)
+// AuthService 认证服务接口
+type AuthService interface {
+	Login(ctx context.Context, username, password string) (*domains.TokenPair, error)
+	Logout(ctx context.Context, token string) error
+	RefreshToken(ctx context.Context, refreshToken string) (*domains.TokenPair, error)
+	ValidateToken(ctx context.Context, token string) (*domains.User, error)
+	GetCurrentUser(ctx context.Context, token string) (*domains.User, error)
+	ChangePassword(ctx context.Context, userID uint, oldPassword, newPassword string) error
+	ResetPassword(ctx context.Context, email string) error
+	EnableTwoFactor(ctx context.Context, userID uint) (string, error)
+	VerifyTwoFactor(ctx context.Context, userID uint, code string) error
 }
 
-// EventManager 事件管理接口
-type EventManager interface {
-	SendEvent(ctx context.Context, event *Event) error
-	GetEventHistory(ctx context.Context, filter *EventFilter) ([]*Event, error)
-	ProcessEvent(ctx context.Context, eventID string) error
+// HistoryService 历史服务接口
+type HistoryService interface {
+	CreateHistory(ctx context.Context, history *models.History) error
+	GetHistoryByUserID(ctx context.Context, userID uint, filters map[string]interface{}) ([]models.History, error)
+	GetHistoryByType(ctx context.Context, historyType string, limit int) ([]models.History, error)
+	DeleteHistory(ctx context.Context, id uint) error
+	ClearHistory(ctx context.Context, userID uint, historyType string) error
+	GetHistoryStats(ctx context.Context, userID uint) (map[string]interface{}, error)
 }
 
-// TorrentFetcher 种子获取接口
-type TorrentFetcher interface {
-	FetchTorrents(ctx context.Context, request *TorrentFetchRequest) (*TorrentFetchResponse, error)
+// ConfigService 配置服务接口
+type ConfigService interface {
+	GetConfig(ctx context.Context, key string) (interface{}, error)
+	SetConfig(ctx context.Context, key string, value interface{}) error
+	DeleteConfig(ctx context.Context, key string) error
+	GetAllConfigs(ctx context.Context) (map[string]interface{}, error)
+	ResetConfig(ctx context.Context, key string) error
+	ExportConfigs(ctx context.Context) (map[string]interface{}, error)
+	ImportConfigs(ctx context.Context, configs map[string]interface{}) error
+	ValidateConfig(ctx context.Context, key string, value interface{}) error
 }
 
-// FileScraper 文件抓取接口
-type FileScraper interface {
-	ScrapeFiles(ctx context.Context, request *FileScrapeRequest) (*FileScrapeResponse, error)
+// CacheService 缓存服务接口
+type CacheService interface {
+	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
+	Get(ctx context.Context, key string) (interface{}, error)
+	Delete(ctx context.Context, key string) error
+	Clear(ctx context.Context) error
+	GetStats(ctx context.Context) (map[string]interface{}, error)
+	SetMultiple(ctx context.Context, items map[string]interface{}, expiration time.Duration) error
+	GetMultiple(ctx context.Context, keys []string) (map[string]interface{}, error)
 }
 
-// NoteManager 备注管理接口
-type NoteManager interface {
-	ManageNote(ctx context.Context, request *NoteRequest) (*NoteResponse, error)
+// MetricsService 指标服务接口
+type MetricsService interface {
+	RecordMetric(ctx context.Context, name string, value float64, tags map[string]string) error
+	IncrementCounter(ctx context.Context, name string, tags map[string]string) error
+	SetGauge(ctx context.Context, name string, value float64, tags map[string]string) error
+	RecordHistogram(ctx context.Context, name string, value float64, tags map[string]string) error
+	GetMetrics(ctx context.Context, query string) (map[string]interface{}, error)
+	GetMetricsSummary(ctx context.Context, timeRange string) (map[string]interface{}, error)
+	ResetMetrics(ctx context.Context) error
 }
-
-// 请求和响应类型定义
-
-// DownloadStatusRequest 下载状态监控请求
-type DownloadStatusRequest struct {
-	UserID      string `json:"user_id"`
-	DownloadIDs []string `json:"download_ids"`
-	Status      string `json:"status"`
-}
-
-// DownloadStatusResponse 下载状态监控响应
-type DownloadStatusResponse struct {
-	Success bool      `json:"success"`
-	Results []string  `json:"results"`
-	Message string    `json:"message"`
-}
-
-// TorrentFetchRequest 种子获取请求
-type TorrentFetchRequest struct {
-	UserID  string `json:"user_id"`
-	Site    string `json:"site"`
-	Keyword string `json:"keyword"`
-	Category string `json:"category"`
-	SizeMin int64  `json:"size_min"`
-	SizeMax int64  `json:"size_max"`
-}
-
-// TorrentFetchResponse 种子获取响应
-type TorrentFetchResponse struct {
-	Success  bool        `json:"success"`
-	Torrents interface{} `json:"torrents"`
-	Total    int         `json:"total"`
-	Message  string      `json:"message"`
-}
-
-// FileScrapeRequest 文件抓取请求
-type FileScrapeRequest struct {
-	UserID     string   `json:"user_id"`
-	Path       string   `json:"path"`
-	Extensions []string `json:"extensions"`
-	Recursive  bool     `json:"recursive"`
-	AutoMatch  bool     `json:"auto_match"`
-}
-
-// FileScrapeResponse 文件抓取响应
-type FileScrapeResponse struct {
-	Success  bool      `json:"success"`
-	Files    []string  `json:"files"`
-	Total    int       `json:"total"`
-	Message  string    `json:"message"`
-}
-
-// NoteRequest 备注管理请求
-type NoteRequest struct {
-	Action     string     `json:"action"`
-	UserID     string     `json:"user_id"`
-	TargetType string     `json:"target_type"`
-	TargetID   string     `json:"target_id"`
-	Note       *Note      `json:"note,omitempty"`
-	NoteID     string     `json:"note_id,omitempty"`
-}
-
-// NoteResponse 备注管理响应
-type NoteResponse struct {
-	Success bool        `json:"success"`
-	Data    interface{} `json:"data"`
-	Message string      `json:"message"`
-}
-
-// Event 事件
-type Event struct {
-	ID        string                 `json:"id"`
-	Type      string                 `json:"type"`
-	Source    string                 `json:"source"`
-	Data      map[string]interface{} `json:"data"`
-	UserID    string                 `json:"user_id"`
-	CreatedAt string                 `json:"created_at"`
-}
-
-// EventFilter 事件过滤器
-type EventFilter struct {
-	UserID    string `json:"user_id"`
-	Type      string `json:"type"`
-	Source    string `json:"source"`
-	StartTime string `json:"start_time"`
-	EndTime   string `json:"end_time"`
-}
-
-

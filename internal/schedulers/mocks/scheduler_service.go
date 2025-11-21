@@ -2,7 +2,7 @@ package mocks
 
 import (
 	"context"
-	"github.com/yfh-yun/moviepilot-go/internal/schedulers"
+	"moviepilot-go/internal/schedulers"
 
 	"github.com/stretchr/testify/mock"
 )

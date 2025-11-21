@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/plugin"
+	"moviepilot-go/pkg/plugin"
 )
 
 // HelloPlugin 示例插件

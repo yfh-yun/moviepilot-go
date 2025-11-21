@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/logger"
 
 	"github.com/redis/go-redis/v9"
 )

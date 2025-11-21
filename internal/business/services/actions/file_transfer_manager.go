@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/models"
 
 	"go.uber.org/zap"
 )

@@ -1,405 +1,433 @@
-package core
+// Package event 事件系统模块
+package event
 
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"github.com/google/uuid"
 )
 
-// 事件类型常量
+// EventType 事件类型
+type EventType string
+
 const (
 	// 系统事件
-	EventSystemStart       = "system_start"
-	EventSystemStop        = "system_stop"
-	EventSystemUpdate      = "system_update"
+	EventSystemStart    EventType = "system.start"
+	EventSystemStop     EventType = "system.stop"
+	EventSystemRestart  EventType = "system.restart"
+	EventSystemError    EventType = "system.error"
 
-	// 下载事件
-	EventDownloadAdd       = "download_add"
-	EventDownloadStart     = "download_start"
-	EventDownloadProgress  = "download_progress"
-	EventDownloadComplete  = "download_complete"
-	EventDownloadError     = "download_error"
-	EventDownloadPause     = "download_pause"
-	EventDownloadResume    = "download_resume"
-	EventDownloadRemove    = "download_remove"
+	// 用户事件
+	EventUserLogin      EventType = "user.login"
+	EventUserLogout     EventType = "user.logout"
+	EventUserRegister   EventType = "user.register"
+	EventUserUpdate     EventType = "user.update"
 
 	// 媒体事件
-	EventMediaIdentify     = "media_identify"
-	EventMediaMatched      = "media_matched"
-	EventMediaRename       = "media_rename"
-	EventMediaMove         = "media_move"
-	EventMediaScan         = "media_scan"
-	EventMediaUpdate       = "media_update"
+	EventMediaAdded     EventType = "media.added"
+	EventMediaUpdated   EventType = "media.updated"
+	EventMediaDeleted   EventType = "media.deleted"
+	EventMediaPlayed    EventType = "media.played"
 
-	// 任务事件
-	EventTaskStart         = "task_start"
-	EventTaskProgress      = "task_progress"
-	EventTaskComplete      = "task_complete"
-	EventTaskError         = "task_error"
+	// 下载事件
+	EventDownloadStart  EventType = "download.start"
+	EventDownloadPause  EventType = "download.pause"
+	EventDownloadResume EventType = "download.resume"
+	EventDownloadComplete EventType = "download.complete"
+	EventDownloadFailed EventType = "download.failed"
+
+	// 订阅事件
+	EventSubscribeCreated EventType = "subscribe.created"
+	EventSubscribeUpdated EventType = "subscribe.updated"
+	EventSubscribeDeleted EventType = "subscribe.deleted"
+	EventSubscribeTriggered EventType = "subscribe.triggered"
+
+	// 种子事件
+	EventTorrentFound   EventType = "torrent.found"
+	EventTorrentAdded   EventType = "torrent.added"
+	EventTorrentDownloaded EventType = "torrent.downloaded"
+	EventTorrentFailed  EventType = "torrent.failed"
+
+	// 工作流事件
+	EventWorkflowStart  EventType = "workflow.start"
+	EventWorkflowComplete EventType = "workflow.complete"
+	EventWorkflowFailed EventType = "workflow.failed"
 
 	// 插件事件
-	EventPluginLoad        = "plugin_load"
-	EventPluginUnload      = "plugin_unload"
-	EventPluginUpdate      = "plugin_update"
-
-	// 通知事件
-	EventNotification      = "notification"
+	EventPluginLoaded   EventType = "plugin.loaded"
+	EventPluginUnloaded EventType = "plugin.unloaded"
+	EventPluginError    EventType = "plugin.error"
 )
 
-// Event 事件接口
-type Event interface {
-	GetID() string
-	GetType() string
-	GetData() map[string]interface{}
-	GetTimestamp() time.Time
-	GetSource() string
-}
+// EventPriority 事件优先级
+type EventPriority int
 
-// BaseEvent 基础事件实现
-type BaseEvent struct {
+const (
+	PriorityLow    EventPriority = 1
+	PriorityNormal EventPriority = 5
+	PriorityHigh   EventPriority = 10
+	PriorityUrgent EventPriority = 20
+)
+
+// Event 事件结构
+type Event struct {
 	ID        string                 `json:"id"`
-	EventType string                 `json:"event_type"`
+	Type      EventType              `json:"type"`
 	Data      map[string]interface{} `json:"data"`
-	Timestamp time.Time              `json:"timestamp"`
+	Priority  EventPriority          `json:"priority"`
 	Source    string                 `json:"source"`
+	Timestamp time.Time              `json:"timestamp"`
+	Context   context.Context        `json:"-"`
 }
 
-// GetID 获取事件ID
-func (e *BaseEvent) GetID() string {
-	return e.ID
-}
-
-// GetType 获取事件类型
-func (e *BaseEvent) GetType() string {
-	return e.EventType
-}
-
-// GetData 获取事件数据
-func (e *BaseEvent) GetData() map[string]interface{} {
-	return e.Data
-}
-
-// GetTimestamp 获取事件时间戳
-func (e *BaseEvent) GetTimestamp() time.Time {
-	return e.Timestamp
-}
-
-// GetSource 获取事件源
-func (e *BaseEvent) GetSource() string {
-	return e.Source
-}
-
-// EventHandler 事件处理器函数类型
-type EventHandler func(context.Context, Event) error
-
-// EventSubscriber 事件订阅者
-type EventSubscriber struct {
-	ID        string
-	Handler   EventHandler
-	Priority  int           // 优先级，值越小优先级越高
-	Once      bool          // 是否只执行一次
-	Filter    func(Event) bool // 过滤函数
-}
-
-// EventManager 事件管理器
-type EventManager struct {
-	logger       *logger.Logger
-	subscribers  map[string][]EventSubscriber
-	mutex        sync.RWMutex
-	wg           sync.WaitGroup
-	shutdown     chan struct{}
-	maxWorkers   int
-	workerPool   chan struct{}
-}
-
-// NewEventManager 创建事件管理器
-func NewEventManager(log *logger.Logger, maxWorkers int) *EventManager {
-	if maxWorkers <= 0 {
-		maxWorkers = 10
+// NewEvent 创建新事件
+func NewEvent(eventType EventType, data map[string]interface{}) *Event {
+	return &Event{
+		ID:        uuid.New().String(),
+		Type:      eventType,
+		Data:      data,
+		Priority:  PriorityNormal,
+		Source:    "system",
+		Timestamp: time.Now(),
+		Context:   context.Background(),
 	}
-
-	em := &EventManager{
-		logger:      log,
-		subscribers: make(map[string][]EventSubscriber),
-		shutdown:    make(chan struct{}),
-		maxWorkers:  maxWorkers,
-		workerPool:  make(chan struct{}, maxWorkers),
-	}
-
-	log.Info("Event manager initialized", "max_workers", maxWorkers)
-	return em
 }
 
-// Subscribe 订阅事件
-func (em *EventManager) Subscribe(eventType string, subscriber EventSubscriber) string {
-	em.mutex.Lock()
-	defer em.mutex.Unlock()
-
-	if _, exists := em.subscribers[eventType]; !exists {
-		em.subscribers[eventType] = make([]EventSubscriber, 0)
-	}
-
-	// 如果没有指定ID，生成一个默认ID
-	if subscriber.ID == "" {
-		subscriber.ID = generateEventID()
-	}
-
-	// 添加订阅者
-	em.subscribers[eventType] = append(em.subscribers[eventType], subscriber)
-
-	// 按优先级排序
-	em.sortSubscribers(eventType)
-
-	em.logger.Info("Event subscribed", "event_type", eventType, "subscriber_id", subscriber.ID)
-	return subscriber.ID
+// NewEventWithPriority 创建带优先级的事件
+func NewEventWithPriority(eventType EventType, data map[string]interface{}, priority EventPriority) *Event {
+	event := NewEvent(eventType, data)
+	event.Priority = priority
+	return event
 }
 
-// Unsubscribe 取消订阅
-func (em *EventManager) Unsubscribe(eventType string, subscriberID string) bool {
-	em.mutex.Lock()
-	defer em.mutex.Unlock()
+// NewEventWithSource 创建带来源的事件
+func NewEventWithSource(eventType EventType, data map[string]interface{}, source string) *Event {
+	event := NewEvent(eventType, data)
+	event.Source = source
+	return event
+}
 
-	if subscribers, exists := em.subscribers[eventType]; exists {
-		for i, subscriber := range subscribers {
-			if subscriber.ID == subscriberID {
-				// 删除订阅者
-				em.subscribers[eventType] = append(subscribers[:i], subscribers[i+1:]...)
-				em.logger.Info("Event unsubscribed", "event_type", eventType, "subscriber_id", subscriberID)
+// SetPriority 设置优先级
+func (e *Event) SetPriority(priority EventPriority) {
+	e.Priority = priority
+}
 
-				// 如果没有订阅者了，删除事件类型
-				if len(em.subscribers[eventType]) == 0 {
-					delete(em.subscribers, eventType)
-				}
+// SetSource 设置来源
+func (e *Event) SetSource(source string) {
+	e.Source = source
+}
 
-				return true
-			}
+// SetContext 设置上下文
+func (e *Event) SetContext(ctx context.Context) {
+	e.Context = ctx
+}
+
+// GetData 获取数据
+func (e *Event) GetData(key string) (interface{}, bool) {
+	value, exists := e.Data[key]
+	return value, exists
+}
+
+// SetData 设置数据
+func (e *Event) SetData(key string, value interface{}) {
+	if e.Data == nil {
+		e.Data = make(map[string]interface{})
+	}
+	e.Data[key] = value
+}
+
+// EventHandler 事件处理器
+type EventHandler interface {
+	Handle(event *Event) error
+	GetName() string
+	GetPriority() EventPriority
+	IsAsync() bool
+}
+
+// EventHandlerFunc 事件处理器函数
+type EventHandlerFunc struct {
+	Name     string
+	Priority EventPriority
+	Async    bool
+	Func     func(event *Event) error
+}
+
+// Handle 处理事件
+func (h *EventHandlerFunc) Handle(event *Event) error {
+	return h.Func(event)
+}
+
+// GetName 获取处理器名称
+func (h *EventHandlerFunc) GetName() string {
+	return h.Name
+}
+
+// GetPriority 获取处理器优先级
+func (h *EventHandlerFunc) GetPriority() EventPriority {
+	return h.Priority
+}
+
+// IsAsync 是否异步处理
+func (h *EventHandlerFunc) IsAsync() bool {
+	return h.Async
+}
+
+// NewEventHandler 创建事件处理器
+func NewEventHandler(name string, priority EventPriority, async bool, handler func(event *Event) error) EventHandler {
+	return &EventHandlerFunc{
+		Name:     name,
+		Priority: priority,
+		Async:    async,
+		Func:     handler,
+	}
+}
+
+// EventFilter 事件过滤器
+type EventFilter interface {
+	Match(event *Event) bool
+	GetName() string
+}
+
+// EventTypeFilter 事件类型过滤器
+type EventTypeFilter struct {
+	Name  string
+	Types []EventType
+}
+
+// Match 匹配事件
+func (f *EventTypeFilter) Match(event *Event) bool {
+	for _, eventType := range f.Types {
+		if event.Type == eventType {
+			return true
 		}
 	}
-
-	em.logger.Warn("Failed to unsubscribe event", "event_type", eventType, "subscriber_id", subscriberID)
 	return false
 }
 
-// UnsubscribeAll 取消所有订阅
-func (em *EventManager) UnsubscribeAll(subscriberID string) int {
-	em.mutex.Lock()
-	defer em.mutex.Unlock()
-
-	count := 0
-	for eventType, subscribers := range em.subscribers {
-		newSubscribers := make([]EventSubscriber, 0)
-		for _, subscriber := range subscribers {
-			if subscriber.ID != subscriberID {
-				newSubscribers = append(newSubscribers, subscriber)
-			} else {
-				count++
-			}
-		}
-
-		if len(newSubscribers) > 0 {
-			em.subscribers[eventType] = newSubscribers
-		} else {
-			delete(em.subscribers, eventType)
-		}
-	}
-
-	em.logger.Info("All event subscriptions removed", "subscriber_id", subscriberID, "count", count)
-	return count
+// GetName 获取过滤器名称
+func (f *EventTypeFilter) GetName() string {
+	return f.Name
 }
 
-// Publish 发布事件
-func (em *EventManager) Publish(ctx context.Context, event Event) {
-	em.mutex.RLock()
-	// 获取该事件类型的订阅者（复制一份以避免锁竞争）
-	eventType := event.GetType()
-	var subscribers []EventSubscriber
-	if subs, exists := em.subscribers[eventType]; exists {
-		subscribers = make([]EventSubscriber, len(subs))
-		copy(subscribers, subs)
-	}
-	// 获取通配符订阅者
-	var wildcardSubscribers []EventSubscriber
-	if subs, exists := em.subscribers["*"]; exists {
-		wildcardSubscribers = make([]EventSubscriber, len(subs))
-		copy(wildcardSubscribers, subs)
-	}
-	em.mutex.RUnlock()
-
-	// 记录事件发布
-	em.logger.Debug("Event published", "type", eventType, "id", event.GetID(), "source", event.GetSource())
-
-	// 处理事件订阅者
-	totalSubscribers := append(subscribers, wildcardSubscribers...)
-	for _, subscriber := range totalSubscribers {
-		// 检查过滤器
-		if subscriber.Filter != nil && !subscriber.Filter(event) {
-			continue
-		}
-
-		// 提交到工作池处理
-		em.wg.Add(1)
-		go em.handleEvent(ctx, event, subscriber)
+// NewEventTypeFilter 创建事件类型过滤器
+func NewEventTypeFilter(name string, types ...EventType) EventFilter {
+	return &EventTypeFilter{
+		Name:  name,
+		Types: types,
 	}
 }
 
-// PublishSync 同步发布事件（阻塞直到所有处理器完成）
-func (em *EventManager) PublishSync(ctx context.Context, event Event) {
-	em.Publish(ctx, event)
-	em.wg.Wait()
+// EventSourceFilter 事件来源过滤器
+type EventSourceFilter struct {
+	Name   string
+	Sources []string
 }
 
-// handleEvent 处理事件
-func (em *EventManager) handleEvent(ctx context.Context, event Event, subscriber EventSubscriber) {
-	defer em.wg.Done()
+// Match 匹配事件
+func (f *EventSourceFilter) Match(event *Event) bool {
+	for _, source := range f.Sources {
+		if event.Source == source {
+			return true
+		}
+	}
+	return false
+}
 
-	// 检查是否关闭
+// GetName 获取过滤器名称
+func (f *EventSourceFilter) GetName() string {
+	return f.Name
+}
+
+// NewEventSourceFilter 创建事件来源过滤器
+func NewEventSourceFilter(name string, sources ...string) EventFilter {
+	return &EventSourceFilter{
+		Name:   name,
+		Sources: sources,
+	}
+}
+
+// EventSubscription 事件订阅
+type EventSubscription struct {
+	ID       string
+	Filter   EventFilter
+	Handler  EventHandler
+	Active   bool
+	Created  time.Time
+}
+
+// NewEventSubscription 创建事件订阅
+func NewEventSubscription(filter EventFilter, handler EventHandler) *EventSubscription {
+	return &EventSubscription{
+		ID:      uuid.New().String(),
+		Filter:  filter,
+		Handler: handler,
+		Active:  true,
+		Created: time.Now(),
+	}
+}
+
+// EventQueue 事件队列
+type EventQueue struct {
+	events chan *Event
+	size   int
+}
+
+// NewEventQueue 创建事件队列
+func NewEventQueue(size int) *EventQueue {
+	return &EventQueue{
+		events: make(chan *Event, size),
+		size:   size,
+	}
+}
+
+// Push 推入事件
+func (eq *EventQueue) Push(event *Event) error {
 	select {
-	case <-em.shutdown:
-		return
+	case eq.events <- event:
+		return nil
 	default:
+		return fmt.Errorf("event queue is full")
 	}
+}
 
-	// 获取工作池槽位
+// Pop 弹出事件
+func (eq *EventQueue) Pop() (*Event, bool) {
 	select {
-	case em.workerPool <- struct{}{}:
-		defer func() {
-			<-em.workerPool
-		}()
+	case event := <-eq.events:
+		return event, true
 	default:
-		em.logger.Warn("Worker pool full, skipping event handler", "event_type", event.GetType(), "subscriber_id", subscriber.ID)
-		return
-	}
-
-	// 执行处理器
-	start := time.Now()
-	err := subscriber.Handler(ctx, event)
-	duration := time.Since(start)
-
-	// 记录处理结果
-	if err != nil {
-		em.logger.Error("Event handler failed", 
-			"event_type", event.GetType(),
-			"subscriber_id", subscriber.ID,
-			"error", err.Error(),
-			"duration", duration,
-		)
-	} else {
-		em.logger.Debug("Event handler completed",
-			"event_type", event.GetType(),
-			"subscriber_id", subscriber.ID,
-			"duration", duration,
-		)
-	}
-
-	// 如果是一次性订阅者，取消订阅
-	if subscriber.Once {
-		em.Unsubscribe(event.GetType(), subscriber.ID)
+		return nil, false
 	}
 }
 
-// ListSubscribers 列出指定事件类型的订阅者
-func (em *EventManager) ListSubscribers(eventType string) []EventSubscriber {
-	em.mutex.RLock()
-	defer em.mutex.RUnlock()
-
-	if subscribers, exists := em.subscribers[eventType]; exists {
-		result := make([]EventSubscriber, len(subscribers))
-		copy(result, subscribers)
-		return result
-	}
-	return []EventSubscriber{}
+// Size 获取队列大小
+func (eq *EventQueue) Size() int {
+	return len(eq.events)
 }
 
-// GetStatistics 获取事件管理器统计信息
-func (em *EventManager) GetStatistics() map[string]interface{} {
-	em.mutex.RLock()
-	defer em.mutex.RUnlock()
+// IsFull 检查队列是否已满
+func (eq *EventQueue) IsFull() bool {
+	return len(eq.events) >= eq.size
+}
 
-	eventCount := len(em.subscribers)
-	totalSubscribers := 0
-	subscribersByEvent := make(map[string]int)
+// IsEmpty 检查队列是否为空
+func (eq *EventQueue) IsEmpty() bool {
+	return len(eq.events) == 0
+}
 
-	for eventType, subscribers := range em.subscribers {
-		subscribersByEvent[eventType] = len(subscribers)
-		totalSubscribers += len(subscribers)
+// EventStatistics 事件统计
+type EventStatistics struct {
+	TotalEvents     int64     `json:"total_events"`
+	ProcessedEvents int64     `json:"processed_events"`
+	FailedEvents    int64     `json:"failed_events"`
+	QueueSize       int       `json:"queue_size"`
+	LastEventTime   time.Time `json:"last_event_time"`
+	ProcessRate     float64   `json:"process_rate"`
+	ErrorRate       float64   `json:"error_rate"`
+	mutex           sync.RWMutex
+}
+
+// NewEventStatistics 创建事件统计
+func NewEventStatistics() *EventStatistics {
+	return &EventStatistics{
+		LastEventTime: time.Now(),
 	}
+}
+
+// IncrementTotal 增加总事件数
+func (es *EventStatistics) IncrementTotal() {
+	es.mutex.Lock()
+	defer es.mutex.Unlock()
+	es.TotalEvents++
+	es.LastEventTime = time.Now()
+}
+
+// IncrementProcessed 增加已处理事件数
+func (es *EventStatistics) IncrementProcessed() {
+	es.mutex.Lock()
+	defer es.mutex.Unlock()
+	es.ProcessedEvents++
+	es.calculateRates()
+}
+
+// IncrementFailed 增加失败事件数
+func (es *EventStatistics) IncrementFailed() {
+	es.mutex.Lock()
+	defer es.mutex.Unlock()
+	es.FailedEvents++
+	es.calculateRates()
+}
+
+// UpdateQueueSize 更新队列大小
+func (es *EventStatistics) UpdateQueueSize(size int) {
+	es.mutex.Lock()
+	defer es.mutex.Unlock()
+	es.QueueSize = size
+}
+
+// GetSnapshot 获取统计快照
+func (es *EventStatistics) GetSnapshot() map[string]interface{} {
+	es.mutex.RLock()
+	defer es.mutex.RUnlock()
 
 	return map[string]interface{}{
-		"event_types":      eventCount,
-		"total_subscribers": totalSubscribers,
-		"subscribers_by_event": subscribersByEvent,
-		"max_workers":      em.maxWorkers,
-		"active_workers":   len(em.workerPool),
+		"total_events":     es.TotalEvents,
+		"processed_events": es.ProcessedEvents,
+		"failed_events":    es.FailedEvents,
+		"queue_size":       es.QueueSize,
+		"last_event_time":  es.LastEventTime,
+		"process_rate":     es.ProcessRate,
+		"error_rate":       es.ErrorRate,
 	}
 }
 
-// Stop 停止事件管理器
-func (em *EventManager) Stop() {
-	close(em.shutdown)
-	em.wg.Wait()
-	em.logger.Info("Event manager stopped")
-}
-
-// CreateEvent 创建新事件
-func (em *EventManager) CreateEvent(eventType string, source string, data map[string]interface{}) Event {
-	return &BaseEvent{
-		ID:        generateEventID(),
-		EventType: eventType,
-		Source:    source,
-		Data:      data,
-		Timestamp: time.Now(),
+// calculateRates 计算处理率和错误率
+func (es *EventStatistics) calculateRates() {
+	if es.TotalEvents > 0 {
+		es.ProcessRate = float64(es.ProcessedEvents) / float64(es.TotalEvents)
+		es.ErrorRate = float64(es.FailedEvents) / float64(es.TotalEvents)
 	}
 }
 
-// sortSubscribers 按优先级排序订阅者
-func (em *EventManager) sortSubscribers(eventType string) {
-	subscribers := em.subscribers[eventType]
-	// 冒泡排序，按优先级从小到大排序
-	for i := 0; i < len(subscribers)-1; i++ {
-		for j := 0; j < len(subscribers)-i-1; j++ {
-			if subscribers[j].Priority > subscribers[j+1].Priority {
-				subscribers[j], subscribers[j+1] = subscribers[j+1], subscribers[j]
-			}
-		}
-	}
-	em.subscribers[eventType] = subscribers
+// RetryPolicy 重试策略
+type RetryPolicy struct {
+	MaxRetries    int           `json:"max_retries"`
+	InitialDelay  time.Duration `json:"initial_delay"`
+	MaxDelay      time.Duration `json:"max_delay"`
+	BackoffFactor float64       `json:"backoff_factor"`
 }
 
-// generateEventID 生成事件ID
-func generateEventID() string {
-	return fmt.Sprintf("event_%d", time.Now().UnixNano())
+// DefaultRetryPolicy 默认重试策略
+func DefaultRetryPolicy() *RetryPolicy {
+	return &RetryPolicy{
+		MaxRetries:    3,
+		InitialDelay:  time.Second,
+		MaxDelay:      time.Minute,
+		BackoffFactor: 2.0,
+	}
 }
 
-// AddEventListener 添加事件监听器的简化方法
-func (em *EventManager) AddEventListener(eventType string, handler EventHandler) string {
-	subscriber := EventSubscriber{
-		Handler:  handler,
-		Priority: 0,
-		Once:     false,
+// GetDelay 获取重试延迟
+func (rp *RetryPolicy) GetDelay(attempt int) time.Duration {
+	if attempt <= 0 {
+		return 0
 	}
-	return em.Subscribe(eventType, subscriber)
+
+	delay := time.Duration(float64(rp.InitialDelay) * 
+		(1 << (attempt - 1)) * rp.BackoffFactor)
+	
+	if delay > rp.MaxDelay {
+		delay = rp.MaxDelay
+	}
+	
+	return delay
 }
 
-// AddOneTimeEventListener 添加一次性事件监听器
-func (em *EventManager) AddOneTimeEventListener(eventType string, handler EventHandler) string {
-	subscriber := EventSubscriber{
-		Handler:  handler,
-		Priority: 0,
-		Once:     true,
-	}
-	return em.Subscribe(eventType, subscriber)
-}
-
-// AddFilteredEventListener 添加带过滤条件的事件监听器
-func (em *EventManager) AddFilteredEventListener(eventType string, handler EventHandler, filter func(Event) bool) string {
-	subscriber := EventSubscriber{
-		Handler: handler,
-		Priority: 0,
-		Once:    false,
-		Filter:  filter,
-	}
-	return em.Subscribe(eventType, subscriber)
+// ShouldRetry 是否应该重试
+func (rp *RetryPolicy) ShouldRetry(attempt int) bool {
+	return attempt < rp.MaxRetries
 }

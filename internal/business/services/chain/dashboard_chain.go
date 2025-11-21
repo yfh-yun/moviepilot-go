@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/pkg/cache"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/pkg/cache"
 )
 
 // DashboardChain 仪表板统计处理链

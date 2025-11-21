@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/notification"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/interfaces"
+	"moviepilot-go/internal/integration/notification"
+	"moviepilot-go/internal/repositories/interfaces"
 )
 
 // Service 通知服务

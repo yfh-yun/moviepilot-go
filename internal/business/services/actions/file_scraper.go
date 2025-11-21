@@ -4,13 +4,14 @@ package actions
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
+	"go.uber.org/zap"
+
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/business/services"
+	"moviepilot-go/pkg/logger"
 )
 
 // ScrapeFileAction 文件抓取动作

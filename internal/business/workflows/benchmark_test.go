@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/registry"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/types"
+	"moviepilot-go/internal/business/workflows/registry"
+	"moviepilot-go/internal/business/workflows/types"
 )
 
 // BenchmarkActionCreation 基准测试动作创建

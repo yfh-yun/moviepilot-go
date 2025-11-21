@@ -2,7 +2,7 @@
 package torrent
 
 import (
-	"base64"
+	"encoding/base64"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/pkg/utils"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/utils"
 
 	"go.uber.org/zap"
 )

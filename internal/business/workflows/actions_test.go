@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/registry"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/types"
+	"moviepilot-go/internal/business/workflows/interfaces"
+	"moviepilot-go/internal/business/workflows/registry"
+	"moviepilot-go/internal/business/workflows/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

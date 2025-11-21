@@ -8,8 +8,8 @@ import (
 	"gorm.io/gorm"
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/internal/business/services"
+	"moviepilot-go/internal/models"
 )
 
 // HistoryServiceImpl 历史记录服务实现

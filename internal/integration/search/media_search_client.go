@@ -2,7 +2,7 @@ package search
 
 import (
 	"context"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/logger"
 )
 
 // MediaSearchClient 媒体搜索客户端

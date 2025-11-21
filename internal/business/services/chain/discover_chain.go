@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/cache"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/pkg/cache"
+	"moviepilot-go/internal/models"
 )
 
 // DiscoverChain 发现处理链

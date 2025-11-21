@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/logger"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

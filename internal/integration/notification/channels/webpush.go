@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/notification"
+	"moviepilot-go/internal/integration/notification"
 )
 
 // WebPushConfig Web Push通知配置

@@ -1,35 +1,41 @@
 package interfaces
 
-import "github.com/yfh-yun/moviepilot-go/internal/models"
+import (
+	"context"
+	"moviepilot-go/internal/models"
+)
 
 // SiteUserDataRepository 站点用户数据仓储接口
 type SiteUserDataRepository interface {
-	// 基础CRUD
-	Create(userData *model.SiteUserData) error
-	GetByID(id uint) (*model.SiteUserData, error)
-	Update(userData *model.SiteUserData) error
-	Delete(id uint) error
-	List(offset, limit int) ([]*model.SiteUserData, int64, error)
+	// Create 创建站点用户数据
+	Create(ctx context.Context, userData *models.SiteUserData) error
 	
-	// 按域名获取
-	GetByDomain(domain string) ([]*model.SiteUserData, error)
-	AsyncGetByDomain(domain string) ([]*model.SiteUserData, error)
+	// GetByID 根据ID获取站点用户数据
+	GetByID(ctx context.Context, id string) (*models.SiteUserData, error)
 	
-	// 按域名和日期获取
-	GetByDomainAndDate(domain, workdate *string) ([]*model.SiteUserData, error)
+	// GetByUserID 根据用户ID获取站点用户数据
+	GetByUserID(ctx context.Context, userID string) ([]*models.SiteUserData, error)
 	
-	// 按日期获取
-	GetByDate(date string) ([]*model.SiteUserData, error)
+	// GetBySiteID 根据站点ID获取用户数据
+	GetBySiteID(ctx context.Context, siteID string) ([]*models.SiteUserData, error)
 	
-	// 获取最新数据
-	GetLatest() ([]*model.SiteUserData, error)
+	// GetByUserAndSite 根据用户ID和站点ID获取数据
+	GetByUserAndSite(ctx context.Context, userID, siteID string) (*models.SiteUserData, error)
 	
-	// 按用户获取
-	GetByUsername(username string) ([]*model.SiteUserData, error)
+	// Update 更新站点用户数据
+	Update(ctx context.Context, userData *models.SiteUserData) error
 	
-	// 更新用户数据
-	UpdateUserData(domain, name string, payload map[string]interface{}) error
+	// Delete 删除站点用户数据
+	Delete(ctx context.Context, id string) error
 	
-	// 批量操作
-	BatchCreate(userDataList []*model.SiteUserData) error
+	// List 获取站点用户数据列表
+	List(ctx context.Context, params ListSiteUserDataParams) ([]*models.SiteUserData, int64, error)
+}
+
+// ListSiteUserDataParams 站点用户数据列表查询参数
+type ListSiteUserDataParams struct {
+	Page     int    `json:"page"`
+	PageSize int    `json:"page_size"`
+	UserID   string `json:"user_id"`
+	SiteID   string `json:"site_id"`
 }

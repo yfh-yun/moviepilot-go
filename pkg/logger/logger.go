@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -30,7 +28,11 @@ func (l *lumberjackLogger) Write(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 	return file.Write(p)
 }
 
@@ -44,9 +46,6 @@ var (
 	ContextKeyRequestID = contextKey("request_id")
 	ContextKeyUserID    = contextKey("user_id")
 	ContextKeyTraceID   = contextKey("trace_id")
-
-	// 日志配置默认值
-	compress = true // 日志文件压缩
 
 	// 环境变量前缀
 	envPrefix = "LOGGER_"
@@ -186,17 +185,12 @@ func buildMultiWriterLogger(logConfig *zap.Config) (*zap.Logger, error) {
 		filePath = getEnvOrDefault(envPrefix+"FILE", "/var/log/moviepilot/app.log")
 	}
 
-	// 配置日志轮转（仅在文件输出时使用）
-	maxSize := getIntEnvOrDefault(envPrefix+"MAX_SIZE", 100)
-	maxBackups := getIntEnvOrDefault(envPrefix+"MAX_BACKUPS", 3)
-	maxAge := getIntEnvOrDefault(envPrefix+"MAX_AGE", 28)
-
 	// 创建文件写入器（使用兼容结构体）
 	fileWriter := &lumberjackLogger{
 		Filename:   filePath,
-		MaxSize:    maxSize,
-		MaxBackups: maxBackups,
-		MaxAge:     maxAge,
+		MaxSize:    getIntEnvOrDefault(envPrefix+"MAX_SIZE", 100),
+		MaxBackups: getIntEnvOrDefault(envPrefix+"MAX_BACKUPS", 3),
+		MaxAge:     getIntEnvOrDefault(envPrefix+"MAX_AGE", 28),
 		Compress:   getBoolEnvOrDefault(envPrefix+"COMPRESS", true),
 		LocalTime:  true,
 	}
@@ -226,15 +220,11 @@ func configureFileOutput(logConfig *zap.Config, includeStdout bool) {
 	// 确保目录存在
 	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 		// 如果创建目录失败，回退到标准输出
+		// 注意：这里不能使用logger，因为logger可能还未初始化
 		logConfig.OutputPaths = []string{"stdout"}
 		logConfig.ErrorOutputPaths = []string{"stderr"}
 		return
 	}
-
-	// 配置日志轮转（仅在文件输出时使用）
-	maxSize := getIntEnvOrDefault(envPrefix+"MAX_SIZE", 100)
-	maxBackups := getIntEnvOrDefault(envPrefix+"MAX_BACKUPS", 3)
-	maxAge := getIntEnvOrDefault(envPrefix+"MAX_AGE", 28)
 
 	// 配置输出路径
 	if includeStdout {

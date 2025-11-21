@@ -8,7 +8,7 @@ import (
 
 	"go.uber.org/zap"
 	
-	"github.com/yfh-yun/moviepilot-go/internal/integration/notification/channels"
+	"moviepilot-go/internal/integration/notification/channels"
 )
 
 // NotificationService 通知服务

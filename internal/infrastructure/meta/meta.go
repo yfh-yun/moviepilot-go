@@ -3,7 +3,7 @@ package meta
 import (
 	"strings"
 	"regexp"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/logger"
 )
 
 // 媒体类型常量

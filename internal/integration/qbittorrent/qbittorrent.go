@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/logger"
 	"net/http"
 	"net/url"
 	"strings"

@@ -2,8 +2,8 @@ package workflows
 import (
 	"fmt"
 
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/internal/repositories"
 	"go.uber.org/zap"
 )
 

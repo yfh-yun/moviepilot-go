@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/base"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/types"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/business/workflows/base"
+	"moviepilot-go/internal/business/workflows/interfaces"
+	"moviepilot-go/internal/business/workflows/types"
+	"moviepilot-go/pkg/logger"
 )
 
 // FileScanner 文件扫描动作

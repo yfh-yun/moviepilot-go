@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/types"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/business/workflows/types"
+	"moviepilot-go/pkg/logger"
 )
 
 // TMDBDataSource TMDB数据源

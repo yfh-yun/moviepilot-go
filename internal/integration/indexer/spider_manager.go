@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/indexer/spiders"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/integration/indexer/spiders"
+	"moviepilot-go/pkg/logger"
 
 	"go.uber.org/zap"
 )

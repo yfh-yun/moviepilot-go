@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/internal/models"
 
 	"go.uber.org/zap"
 )

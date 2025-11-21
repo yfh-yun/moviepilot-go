@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/meta"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/repositories"
+	"moviepilot-go/internal/infrastructure/meta"
+	"moviepilot-go/internal/repositories/repositories"
 )
 
 // AnimeMetadataService 动漫元数据服务扩展

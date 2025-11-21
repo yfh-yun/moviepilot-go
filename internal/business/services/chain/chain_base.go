@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/cache"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/pkg/plugin"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services/template"
+	"moviepilot-go/pkg/cache"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/plugin"
+	"moviepilot-go/internal/business/services"
+	"moviepilot-go/internal/business/services/template"
 
 	"go.uber.org/zap"
 )

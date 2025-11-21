@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/notification"
+	"moviepilot-go/internal/integration/notification"
 )
 
 // EmailConfig 邮件通知配置

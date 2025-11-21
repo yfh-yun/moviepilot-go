@@ -3,6 +3,8 @@
 package jwt
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -36,12 +38,33 @@ var (
 	ErrInvalidSignature = errors.New("invalid signature")
 )
 
+// generateJTI 生成JWT ID (JTI)
+func generateJTI() string {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		// 如果随机数生成失败，使用时间戳作为fallback
+		return fmt.Sprintf("jti-%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(bytes)
+}
+
 // GenerateToken 生成访问Token和刷新Token
 // userID: 用户ID
 // username: 用户名
 // role: 用户角色
 // 返回: TokenPair包含访问Token和刷新Token
 func GenerateToken(userID uint, username, role string) (*TokenPair, error) {
+	// 输入验证
+	if userID == 0 {
+		return nil, fmt.Errorf("user ID cannot be zero")
+	}
+	if username == "" {
+		return nil, fmt.Errorf("username cannot be empty")
+	}
+	if role == "" {
+		return nil, fmt.Errorf("role cannot be empty")
+	}
+
 	secret := getJWTSecret()
 
 	// 访问Token过期时间（从配置读取，默认24小时）
@@ -59,13 +82,16 @@ func GenerateToken(userID uint, username, role string) (*TokenPair, error) {
 	refreshExpire := time.Now().Add(time.Duration(refreshExpireDays) * 24 * time.Hour)
 
 	// 生成访问Token
+	now := time.Now()
 	accessClaims := &Claims{
 		UserID:   userID,
 		Username: username,
 		Role:     role,
-		StandardClaims: jwt.RegisteredClaims{
-			ExpiresAt: accessExpire.Unix(),
-			IssuedAt:  time.Now().Unix(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        generateJTI(),
+			ExpiresAt: jwt.NewNumericDate(accessExpire),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 			Issuer:    "moviepilot-go",
 			Subject:   username,
 		},
@@ -82,9 +108,11 @@ func GenerateToken(userID uint, username, role string) (*TokenPair, error) {
 		UserID:   userID,
 		Username: username,
 		Role:     role,
-		StandardClaims: jwt.RegisteredClaims{
-			ExpiresAt: refreshExpire.Unix(),
-			IssuedAt:  time.Now().Unix(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        generateJTI(),
+			ExpiresAt: jwt.NewNumericDate(refreshExpire),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 			Issuer:    "moviepilot-go",
 			Subject:   username,
 		},
@@ -110,7 +138,7 @@ func GenerateToken(userID uint, username, role string) (*TokenPair, error) {
 func ParseToken(tokenString string) (*Claims, error) {
 	secret := getJWTSecret()
 
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (any, error) {
 		// 验证签名方法
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -119,13 +147,13 @@ func ParseToken(tokenString string) (*Claims, error) {
 	})
 
 	if err != nil {
-		if ve, ok := err.(*jwt.ValidationError); ok {
-			if ve.Errors&jwt.ValidationErrorExpired != 0 {
-				return nil, ErrExpiredToken
-			}
-			if ve.Errors&jwt.ValidationErrorSignatureInvalid != 0 {
-				return nil, ErrInvalidSignature
-			}
+		// 检查是否是过期错误
+		if err.Error() == "token is expired" {
+			return nil, ErrExpiredToken
+		}
+		// 检查是否是签名错误
+		if err.Error() == "signature is invalid" {
+			return nil, ErrInvalidSignature
 		}
 		return nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
 	}
@@ -162,11 +190,19 @@ func ValidateToken(tokenString string) (bool, error) {
 	return true, nil
 }
 
+// parseTokenSafe 安全解析Token的辅助函数
+func parseTokenSafe(tokenString string) (*Claims, error) {
+	if tokenString == "" {
+		return nil, ErrInvalidToken
+	}
+	return ParseToken(tokenString)
+}
+
 // GetUserIDFromToken 从Token中获取用户ID
 // tokenString: Token字符串
 // 返回: uint用户ID，error错误信息
 func GetUserIDFromToken(tokenString string) (uint, error) {
-	claims, err := ParseToken(tokenString)
+	claims, err := parseTokenSafe(tokenString)
 	if err != nil {
 		return 0, err
 	}
@@ -177,7 +213,7 @@ func GetUserIDFromToken(tokenString string) (uint, error) {
 // tokenString: Token字符串
 // 返回: string用户名，error错误信息
 func GetUsernameFromToken(tokenString string) (string, error) {
-	claims, err := ParseToken(tokenString)
+	claims, err := parseTokenSafe(tokenString)
 	if err != nil {
 		return "", err
 	}
@@ -188,7 +224,7 @@ func GetUsernameFromToken(tokenString string) (string, error) {
 // tokenString: Token字符串
 // 返回: string角色，error错误信息
 func GetRoleFromToken(tokenString string) (string, error) {
-	claims, err := ParseToken(tokenString)
+	claims, err := parseTokenSafe(tokenString)
 	if err != nil {
 		return "", err
 	}
@@ -199,8 +235,11 @@ func GetRoleFromToken(tokenString string) (string, error) {
 func getJWTSecret() string {
 	secret := viper.GetString("jwt.secret")
 	if secret == "" {
-		// 默认密钥，生产环境必须修改
-		secret = "moviepilot-secret-key-change-in-production"
+		// 在开发环境使用默认密钥，生产环境必须配置密钥
+		if viper.GetString("app.env") == "production" {
+			panic("JWT secret must be configured in production environment")
+		}
+		secret = "moviepilot-dev-secret-key"
 	}
 	return secret
 }

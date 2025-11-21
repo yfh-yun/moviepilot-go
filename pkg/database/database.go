@@ -4,8 +4,8 @@ package database
 import (
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/config"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/infrastructure/config"
+	"moviepilot-go/pkg/logger"
 
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"

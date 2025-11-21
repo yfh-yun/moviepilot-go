@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/douban"
+	"moviepilot-go/internal/integration/douban"
 	"go.uber.org/zap"
 )
 

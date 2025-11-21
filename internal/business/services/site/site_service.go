@@ -3,9 +3,9 @@ package site
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/repositories/interfaces"
+	"moviepilot-go/internal/models"
 	"time"
 
 	"gorm.io/gorm"

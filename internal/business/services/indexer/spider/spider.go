@@ -10,8 +10,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/utils"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/utils"
+	"moviepilot-go/pkg/logger"
 )
 
 // Spider 索引器Spider接口

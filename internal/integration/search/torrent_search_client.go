@@ -2,7 +2,7 @@ package search
 
 import (
 	"context"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/logger"
 )
 
 // TorrentSearchClient 种子搜索客户端

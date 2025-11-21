@@ -4,7 +4,7 @@ package interfaces
 import (
 	"context"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/types"
+	"moviepilot-go/internal/business/workflows/types"
 )
 
 // Manager 动作管理器接口

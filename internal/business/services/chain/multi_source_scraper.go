@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
-	"github.com/yfh-yun/moviepilot-go/pkg/utils"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/internal/business/services"
+	"moviepilot-go/pkg/utils"
 	"go.uber.org/zap"
 )
 

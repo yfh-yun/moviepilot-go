@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/implementations"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/business/workflows/interfaces"
+	"moviepilot-go/internal/business/workflows/implementations"
+	"moviepilot-go/pkg/logger"
 )
 
 // ActionRegistry 动作注册表

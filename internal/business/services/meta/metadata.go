@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/config"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/tmdb"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/tvdb"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/infrastructure/config"
+	"moviepilot-go/internal/integration/tmdb"
+	"moviepilot-go/internal/integration/tvdb"
+	"moviepilot-go/pkg/logger"
 )
 
 // MediaType 媒体类型

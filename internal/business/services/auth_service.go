@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/pkg/jwt"
+	"moviepilot-go/internal/repositories/interfaces"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/pkg/jwt"
 
 	"golang.org/x/crypto/bcrypt"
 )

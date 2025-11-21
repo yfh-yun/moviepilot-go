@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
-	"github.com/yfh-yun/moviepilot-go/pkg/utils"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/business/services"
+	"moviepilot-go/pkg/utils"
 )
 
 // DownloadChain 下载处理链

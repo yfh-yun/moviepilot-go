@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/notification"
+	"moviepilot-go/internal/integration/notification"
 )
 
 // WeChatWorkConfig 企业微信通知配置

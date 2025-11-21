@@ -6,11 +6,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/types"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/base"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/manager"
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/implementations"
+	"moviepilot-go/internal/business/workflows/interfaces"
+	"moviepilot-go/internal/business/workflows/types"
+	"moviepilot-go/internal/business/workflows/base"
+	"moviepilot-go/internal/business/workflows/manager"
+	"moviepilot-go/internal/business/workflows/implementations"
 )
 
 // MigrationHelper 迁移助手

@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/jellyfin"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/emby"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/plex"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
+	"moviepilot-go/internal/integration/jellyfin"
+	"moviepilot-go/internal/integration/emby"
+	"moviepilot-go/internal/integration/plex"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/business/services"
 
 	"go.uber.org/zap"
 )

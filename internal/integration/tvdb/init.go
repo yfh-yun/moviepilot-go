@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/config"
+	"moviepilot-go/internal/infrastructure/config"
 )
 
 // TVDBService TVDB集成服务

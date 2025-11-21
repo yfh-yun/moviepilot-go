@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/tmdb"
+	"moviepilot-go/internal/integration/tmdb"
 )
 
 // TMDBFactory TMDB API工厂

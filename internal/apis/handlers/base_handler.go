@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/pkg/response"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/response"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

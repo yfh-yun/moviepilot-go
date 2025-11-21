@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/workflows/types"
+	"moviepilot-go/internal/business/workflows/types"
 )
 
 // Action 动作接口

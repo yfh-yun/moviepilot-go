@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/internal/repositories/interfaces"
+	"moviepilot-go/internal/models"
 	"strings"
 	"time"
 )

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/business/services"
 )
 
 // NoteAction 备注管理动作

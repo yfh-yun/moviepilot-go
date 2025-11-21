@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/bangumi"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/douban"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/tmdb"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/interfaces"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/internal/integration/bangumi"
+	"moviepilot-go/internal/integration/douban"
+	"moviepilot-go/internal/integration/tmdb"
+	"moviepilot-go/internal/repositories/interfaces"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/models"
 )
 
 type SearchService struct {

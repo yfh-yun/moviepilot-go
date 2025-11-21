@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/indexer"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/integration/indexer"
+	"moviepilot-go/pkg/logger"
 
 	"go.uber.org/zap"
 )

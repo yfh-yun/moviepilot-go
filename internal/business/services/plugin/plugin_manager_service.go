@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
-	"github.com/yfh-yun/moviepilot-go/pkg/plugin"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/business/services"
+	"moviepilot-go/pkg/plugin"
 )
 
 // PluginManagerService 插件管理器服务

@@ -13,8 +13,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/database"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/database"
+	"moviepilot-go/pkg/logger"
 )
 
 // DatabaseSecurity 数据库安全管理器

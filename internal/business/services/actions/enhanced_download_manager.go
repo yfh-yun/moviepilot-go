@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services/interfaces"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services/torrent"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/repositories/interfaces"
+	"moviepilot-go/internal/business/services/interfaces"
+	"moviepilot-go/internal/business/services/torrent"
 
 	"go.uber.org/zap"
 )

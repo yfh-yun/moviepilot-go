@@ -7,9 +7,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/utils"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/pkg/utils"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/models"
 )
 
 // MediaChain 媒体处理链 - 简化版本专注于核心刮削功能

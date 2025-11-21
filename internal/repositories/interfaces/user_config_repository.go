@@ -1,32 +1,35 @@
 package interfaces
 
-import "github.com/yfh-yun/moviepilot-go/internal/models"
+import (
+	"context"
+	"moviepilot-go/internal/models"
+)
 
 // UserConfigRepository 用户配置仓储接口
 type UserConfigRepository interface {
-	// 基础CRUD
-	Create(config *model.UserConfig) error
-	GetByID(id uint) (*model.UserConfig, error)
-	Update(config *model.UserConfig) error
-	Delete(id uint) error
-	List(offset, limit int) ([]*model.UserConfig, int64, error)
+	// Create 创建用户配置
+	Create(ctx context.Context, config *models.UserConfig) error
 	
-	// 按用户和键获取
-	GetByKey(username, key string) (*model.UserConfig, error)
+	// GetByID 根据ID获取用户配置
+	GetByID(ctx context.Context, id string) (*models.UserConfig, error)
 	
-	// 按用户获取
-	GetByUsername(username string) ([]*model.UserConfig, error)
+	// GetByUserID 根据用户ID获取配置
+	GetByUserID(ctx context.Context, userID string) (*models.UserConfig, error)
 	
-	// 按键获取
-	GetByKeyOnly(key string) ([]*model.UserConfig, error)
+	// Update 更新用户配置
+	Update(ctx context.Context, config *models.UserConfig) error
 	
-	// 设置配置
-	SetConfig(username, key, value string) error
+	// Delete 删除用户配置
+	Delete(ctx context.Context, id string) error
 	
-	// 删除配置
-	DeleteByKey(username, key string) error
-	DeleteByUsername(username string) error
-	
-	// 批量操作
-	BatchSet(username string, configs map[string]string) error
+	// List 获取用户配置列表
+	List(ctx context.Context, params ListUserConfigParams) ([]*models.UserConfig, int64, error)
+}
+
+// ListUserConfigParams 用户配置列表查询参数
+type ListUserConfigParams struct {
+	Page     int    `json:"page"`
+	PageSize int    `json:"page_size"`
+	UserID   string `json:"user_id"`
+	Key      string `json:"key"`
 }

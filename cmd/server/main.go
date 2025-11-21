@@ -15,18 +15,19 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	
-	"github.com/yfh-yun/moviepilot-go/internal/apis/handlers"
-	"github.com/yfh-yun/moviepilot-go/internal/apis/routes"
-	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/config"
-	"github.com/yfh-yun/moviepilot-go/pkg/cache"
-	"github.com/yfh-yun/moviepilot-go/pkg/database"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/apis/middlewares"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/migrations"
-	"github.com/yfh-yun/moviepilot-go/internal/schedulers"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services/message"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services/plugin"
+	"moviepilot-go/internal/apis/handlers"
+	"moviepilot-go/internal/apis/routes"
+	"moviepilot-go/internal/infrastructure/config"
+	"moviepilot-go/pkg/cache"
+	"moviepilot-go/pkg/database"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/apis/middlewares"
+	repoInterfaces "moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/repositories/migrations"
+	"moviepilot-go/internal/repositories/repositories"
+	"moviepilot-go/internal/schedulers"
+	"moviepilot-go/internal/business/services/message"
+	"moviepilot-go/internal/business/services/plugin"
 )
 
 const (
@@ -116,25 +117,26 @@ func main() {
 	engine := routes.SetupRouter(routerConfig)
 
 	// Add global middleware
-	engine.Use(middleware.RequestIDMiddleware())
-	engine.Use(middleware.LoggerMiddleware())
-	engine.Use(middleware.RecoveryMiddleware())
-	engine.Use(middleware.CORSMiddleware())
+	engine.Use(middlewares.LoggerMiddleware(zapLogger))
+	// TODO: Add other middleware when implemented
+	// engine.Use(middlewares.RequestIDMiddleware())
+	// engine.Use(middlewares.RecoveryMiddleware())
+	// engine.Use(middlewares.CORSMiddleware())
 
 	// Check if scheduler is enabled
 	if viper.GetBool("scheduler.enabled") {
 		// Create dependency services
 		db := database.GetDB()
 
-		// Create workflow repository
-		workflowRepo := repositories.NewWorkflowRepository(db)
-
-		// Create message service dependencies
-		messageRepo := repositories.NewMessageRepository(db)
-		userRepo := repositories.NewUserRepository(db)
-
-		// Create plugin service dependencies
-		pluginRepo := repositories.NewPluginRepository(db)
+		// Create all repositories
+		repos := repoInterfaces.NewRepositories(db)
+		workflowRepo := repos.Workflow
+		messageRepo := repos.Message
+		userRepo := repos.User
+		
+		// TODO: Create plugin repository when implemented
+		// pluginRepo := repositories.NewPluginRepository(db)
+		var pluginRepo interface{} // temporary placeholder
 
 		// Create message service instance
 		messageService := message.NewMessageService(messageRepo, userRepo, zapLogger)
@@ -149,7 +151,7 @@ func main() {
 		zapLogger.Info("Creating scheduler dependency services...")
 
 		// Initialize scheduler service
-		schedulerService, err := scheduler.NewSchedulerService(
+		schedulerService, err := schedulers.NewSchedulerService(
 			zapLogger,
 			workflowRepo,
 			nil, // subscribeService - TODO: implement

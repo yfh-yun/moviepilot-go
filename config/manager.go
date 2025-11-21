@@ -7,8 +7,8 @@ import (
     "os"
     "path/filepath"
     
-    "github.com/yfh-yun/moviepilot-go/config/providers"
-    "github.com/yfh-yun/moviepilot-go/config/providers/file"
+    "moviepilot-go/config/providers"
+    "moviepilot-go/config/providers/file"
 )
 
 // Manager 配置管理器

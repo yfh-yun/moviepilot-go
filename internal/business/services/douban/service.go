@@ -2,7 +2,7 @@
 package douban
 
 import (
-	"github.com/yfh-yun/moviepilot-go/internal/integration/douban"
+	"moviepilot-go/internal/integration/douban"
 )
 
 // Service 豆瓣服务接口

@@ -2,14 +2,14 @@ package chain
 
 import (
 	"fmt"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
+	"moviepilot-go/internal/business/services"
 	"regexp"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services/site"
-	"github.com/yfh-yun/moviepilot-go/pkg/utils"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/business/services/site"
+	"moviepilot-go/pkg/utils"
 )
 
 // SiteChain 站点管理处理链

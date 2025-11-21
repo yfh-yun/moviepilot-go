@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/indexer"
+	"moviepilot-go/internal/integration/indexer"
 )
 
 // ParserFactory 解析器工厂

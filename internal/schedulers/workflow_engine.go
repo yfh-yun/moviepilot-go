@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/internal/models"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"

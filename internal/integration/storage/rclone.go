@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/config"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/infrastructure/config"
+	"moviepilot-go/pkg/logger"
 )
 
 // RCloneStorage RClone存储实现

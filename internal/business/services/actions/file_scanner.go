@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/logger"
 
 	"go.uber.org/zap"
 )

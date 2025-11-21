@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/tmdb"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/integration/tmdb"
+	"moviepilot-go/pkg/logger"
 
 	"go.uber.org/zap"
 )

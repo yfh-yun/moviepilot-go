@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/pkg/cache"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/pkg/cache"
 )
 
 // WorkflowShareHelper 工作流分享助手

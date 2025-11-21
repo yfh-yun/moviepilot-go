@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/logger"
 )
 
 // OpenSubtitlesProvider OpenSubtitles提供者

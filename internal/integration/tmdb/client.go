@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/pkg/httpclient"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/pkg/httpclient"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/wechat"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/integration/wechat"
 
 	"go.uber.org/zap"
 )

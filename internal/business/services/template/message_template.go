@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"moviepilot-go/internal/models"
 )
 
 // MessageTemplate 消息模板接口

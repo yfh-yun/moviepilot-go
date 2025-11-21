@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/indexer"
-	"github.com/yfh-yun/moviepilot-go/pkg/httpclient"
+	"moviepilot-go/internal/integration/indexer"
+	"moviepilot-go/pkg/httpclient"
 )
 
 // BaseSpider 基础爬虫

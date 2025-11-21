@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/pkg/logger"
 
 	"go.uber.org/zap"
 )

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/business/services"
+	"moviepilot-go/pkg/logger"
 
 	"go.uber.org/zap"
 )

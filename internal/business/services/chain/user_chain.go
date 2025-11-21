@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories"
-	"github.com/yfh-yun/moviepilot-go/internal/business/services"
-	"github.com/yfh-yun/moviepilot-go/pkg/cache"
-	"github.com/yfh-yun/moviepilot-go/internal/infrastructure/security"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/internal/repositories"
+	"moviepilot-go/internal/business/services"
+	"moviepilot-go/pkg/cache"
+	"moviepilot-go/internal/infrastructure/security"
 )
 
 // UserChain 用户认证处理链

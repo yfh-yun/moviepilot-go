@@ -11,8 +11,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/repositories/repositories"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/repositories/repositories"
 	
 )
 

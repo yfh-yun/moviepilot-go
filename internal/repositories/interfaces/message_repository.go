@@ -1,38 +1,45 @@
 package interfaces
 
 import (
-	"github.com/yfh-yun/moviepilot-go/internal/models"
+	"context"
+	"moviepilot-go/internal/models"
 )
 
 // MessageRepository 消息仓储接口
 type MessageRepository interface {
 	// Create 创建消息
-	Create(message *model.Message) error
-
-	// Update 更新消息
-	Update(message *model.Message) error
-
-	// Delete 删除消息
-	Delete(id uint) error
-
+	Create(ctx context.Context, message *models.Message) error
+	
 	// GetByID 根据ID获取消息
-	GetByID(id uint) (*model.Message, error)
-
+	GetByID(ctx context.Context, id string) (*models.Message, error)
+	
+	// Update 更新消息
+	Update(ctx context.Context, message *models.Message) error
+	
+	// Delete 删除消息
+	Delete(ctx context.Context, id string) error
+	
 	// List 获取消息列表
-	List(offset, limit int) ([]*model.Message, int64, error)
-
-	// GetUnread 获取未读消息
-	GetUnread(userID *int) ([]*model.Message, error)
-
-	// CountUnread 统计未读消息数量
-	CountUnread(userID *int) (int64, error)
-
-	// GetByUserID 根据用户ID获取消息
-	GetByUserID(userID uint, offset, limit int) ([]*model.Message, int64, error)
-
-	// MarkAsRead 标记消息为已读
-	MarkAsRead(id uint) error
-
+	List(ctx context.Context, params ListMessageParams) ([]*models.Message, int64, error)
+	
+	// GetByUserID 根据用户ID获取消息列表
+	GetByUserID(ctx context.Context, userID string, params ListMessageParams) ([]*models.Message, int64, error)
+	
+	// MarkAsRead 标记为已读
+	MarkAsRead(ctx context.Context, id string) error
+	
 	// MarkAllAsRead 标记所有消息为已读
-	MarkAllAsRead(userID *int) error
+	MarkAllAsRead(ctx context.Context, userID string) error
+	
+	// GetUnreadCount 获取未读消息数量
+	GetUnreadCount(ctx context.Context, userID string) (int64, error)
+}
+
+// ListMessageParams 消息列表查询参数
+type ListMessageParams struct {
+	Page     int    `json:"page"`
+	PageSize int    `json:"page_size"`
+	Type     string `json:"type"`
+	Status   string `json:"status"`
+	UserID   string `json:"user_id"`
 }

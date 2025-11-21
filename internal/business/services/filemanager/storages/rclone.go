@@ -15,7 +15,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/filemanager"
+	"moviepilot-go/internal/integration/filemanager"
 )
 
 // RcloneProvider Rclone云存储提供商

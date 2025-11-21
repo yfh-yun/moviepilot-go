@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/models"
-	"github.com/yfh-yun/moviepilot-go/pkg/cache"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/models"
+	"moviepilot-go/pkg/cache"
 )
 
 // DoubanChain 豆瓣处理链

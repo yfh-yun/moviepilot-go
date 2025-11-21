@@ -8,9 +8,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/yfh-yun/moviepilot-go/pkg/logger"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/indexer/parsers"
-	"github.com/yfh-yun/moviepilot-go/internal/integration/indexer/spiders"
+	"moviepilot-go/pkg/logger"
+	"moviepilot-go/internal/integration/indexer/parsers"
+	"moviepilot-go/internal/integration/indexer/spiders"
 )
 
 // IndexerService 索引器服务

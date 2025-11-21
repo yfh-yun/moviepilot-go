@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yfh-yun/moviepilot-go/internal/integration/indexer"
+	"moviepilot-go/internal/integration/indexer"
 )
 
 // NexusPHPParser NexusPHP站点解析器
