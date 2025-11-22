@@ -10,6 +10,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"moviepilot-go/pkg/errors"
+	"moviepilot-go/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // DoHHelper DNS over HTTPS助手
@@ -64,6 +68,8 @@ type DoHAnswer struct {
 
 // NewDoHHelper 创建DoH助手实例
 func NewDoHHelper() *DoHHelper {
+	logger.Debug("Creating new DoHHelper instance", zap.String("func", "NewDoHHelper"))
+	
 	return &DoHHelper{
 		enabled:    false,
 		domains:    []string{},
@@ -82,15 +88,26 @@ func NewDoHHelper() *DoHHelper {
 
 // Enable 启用DoH
 func (doh *DoHHelper) Enable(domains []string) error {
+	logger.Debug("Enabling DoH", zap.String("func", "Enable"), zap.Strings("domains", domains))
+	
 	if domains == nil || len(domains) == 0 {
-		return fmt.Errorf("domains list cannot be empty")
+		logger.Error("Domains list cannot be empty", zap.String("func", "Enable"))
+		return errors.NewAppError(http.StatusBadRequest, "domains list cannot be empty", "")
+	}
+
+	// 验证域名格式
+	for _, domain := range domains {
+		if domain == "" {
+			logger.Error("Domain cannot be empty", zap.String("func", "Enable"))
+			return errors.NewAppError(http.StatusBadRequest, "domain cannot be empty", "")
+		}
 	}
 
 	doh.enabled = true
 	doh.domains = domains
 
 	// 保存原始解析器
-	doh.originalResolver = *net.Resolver{}
+	doh.originalResolver = net.Resolver{}
 
 	// 替换网络解析器
 	net.DefaultResolver = &net.Resolver{
@@ -110,6 +127,10 @@ func (doh *DoHHelper) Enable(domains []string) error {
 			if doh.shouldUseDoH(host) {
 				if ip := doh.getCachedIP(host); ip != "" {
 					address = net.JoinHostPort(ip, port)
+					logger.Debug("Using cached IP for DoH domain", 
+						zap.String("func", "Enable.Dial"),
+						zap.String("domain", host),
+						zap.String("ip", ip))
 				}
 			}
 
@@ -117,16 +138,21 @@ func (doh *DoHHelper) Enable(domains []string) error {
 		},
 	}
 
+	logger.Info("DoH enabled successfully", zap.String("func", "Enable"), zap.Strings("domains", domains))
 	return nil
 }
 
 // Disable 禁用DoH
 func (doh *DoHHelper) Disable() {
+	logger.Debug("Disabling DoH", zap.String("func", "Disable"))
+	
 	doh.enabled = false
 	doh.domains = []string{}
 	
 	// 恢复原始解析器
 	net.DefaultResolver = &doh.originalResolver
+	
+	logger.Info("DoH disabled successfully", zap.String("func", "Disable"))
 }
 
 // IsEnabled 检查DoH是否启用
@@ -136,7 +162,24 @@ func (doh *DoHHelper) IsEnabled() bool {
 
 // SetDomains 设置需要使用DoH的域名
 func (doh *DoHHelper) SetDomains(domains []string) {
+	logger.Debug("Setting DoH domains", zap.String("func", "SetDomains"), zap.Strings("domains", domains))
+	
+	if domains == nil {
+		logger.Warn("Domains list is nil, setting to empty", zap.String("func", "SetDomains"))
+		doh.domains = []string{}
+		return
+	}
+	
+	// 验证域名格式
+	for _, domain := range domains {
+		if domain == "" {
+			logger.Error("Domain cannot be empty", zap.String("func", "SetDomains"))
+			return
+		}
+	}
+	
 	doh.domains = domains
+	logger.Info("DoH domains updated", zap.String("func", "SetDomains"), zap.Strings("domains", domains))
 }
 
 // GetDomains 获取需要使用DoH的域名列表
@@ -146,7 +189,29 @@ func (doh *DoHHelper) GetDomains() []string {
 
 // SetDoHServers 设置DoH服务器列表
 func (doh *DoHHelper) SetDoHServers(servers []string) {
+	logger.Debug("Setting DoH servers", zap.String("func", "SetDoHServers"), zap.Strings("servers", servers))
+	
+	if servers == nil {
+		logger.Warn("Servers list is nil, setting to empty", zap.String("func", "SetDoHServers"))
+		doh.dohServers = []string{}
+		return
+	}
+	
+	// 验证服务器URL格式
+	for _, server := range servers {
+		if server == "" {
+			logger.Error("Server URL cannot be empty", zap.String("func", "SetDoHServers"))
+			return
+		}
+		if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
+			logger.Error("Server URL must start with http:// or https://", 
+				zap.String("func", "SetDoHServers"), zap.String("server", server))
+			return
+		}
+	}
+	
 	doh.dohServers = servers
+	logger.Info("DoH servers updated", zap.String("func", "SetDoHServers"), zap.Strings("servers", servers))
 }
 
 // GetDoHServers 获取DoH服务器列表
@@ -196,6 +261,29 @@ func (doh *DoHHelper) getCachedIP(domain string) string {
 
 // setCachedIP 设置缓存的IP地址
 func (doh *DoHHelper) setCachedIP(domain, ip string, ttl int) {
+	logger.Debug("Caching IP address", 
+		zap.String("func", "setCachedIP"), 
+		zap.String("domain", domain), 
+		zap.String("ip", ip), 
+		zap.Int("ttl", ttl))
+	
+	if domain == "" {
+		logger.Error("Domain cannot be empty", zap.String("func", "setCachedIP"))
+		return
+	}
+	
+	if ip == "" {
+		logger.Error("IP cannot be empty", zap.String("func", "setCachedIP"))
+		return
+	}
+	
+	if ttl <= 0 {
+		logger.Warn("Invalid TTL, using default 300 seconds", 
+			zap.String("func", "setCachedIP"), 
+			zap.Int("ttl", ttl))
+		ttl = 300 // 默认5分钟
+	}
+
 	doh.cacheMutex.Lock()
 	defer doh.cacheMutex.Unlock()
 
@@ -204,52 +292,125 @@ func (doh *DoHHelper) setCachedIP(domain, ip string, ttl int) {
 		IP:       ip,
 		ExpireAt: expireAt,
 	}
+	
+	logger.Debug("IP cached successfully", 
+		zap.String("func", "setCachedIP"), 
+		zap.String("domain", domain), 
+		zap.String("ip", ip), 
+		zap.Time("expire_at", expireAt))
 }
 
 // ResolveDomain 使用DoH解析域名
 func (doh *DoHHelper) ResolveDomain(domain string) ([]string, error) {
+	logger.Debug("Resolving domain", zap.String("func", "ResolveDomain"), zap.String("domain", domain))
+	
+	if domain == "" {
+		logger.Error("Domain cannot be empty", zap.String("func", "ResolveDomain"))
+		return nil, errors.NewAppError(http.StatusBadRequest, "domain cannot be empty", "")
+	}
+
 	if !doh.shouldUseDoH(domain) {
+		logger.Debug("Using standard DNS for domain", zap.String("func", "ResolveDomain"), zap.String("domain", domain))
 		// 使用标准DNS解析
-		return net.LookupHost(domain)
+		ips, err := net.LookupHost(domain)
+		if err != nil {
+			logger.Error("Standard DNS lookup failed", 
+				zap.String("func", "ResolveDomain"), 
+				zap.String("domain", domain), 
+				zap.Error(err))
+			return nil, errors.WrapError(err, fmt.Sprintf("failed to lookup domain %s", domain))
+		}
+		return ips, nil
 	}
 
 	// 检查缓存
 	if cachedIP := doh.getCachedIP(domain); cachedIP != "" {
+		logger.Debug("Using cached IP for domain", 
+			zap.String("func", "ResolveDomain"), 
+			zap.String("domain", domain), 
+			zap.String("ip", cachedIP))
 		return []string{cachedIP}, nil
 	}
 
 	// 使用DoH解析
 	ips, err := doh.resolveWithDoH(domain)
 	if err != nil {
+		logger.Warn("DoH resolution failed, falling back to standard DNS", 
+			zap.String("func", "ResolveDomain"), 
+			zap.String("domain", domain), 
+			zap.Error(err))
 		// DoH失败，回退到标准DNS
-		return net.LookupHost(domain)
+		ips, fallbackErr := net.LookupHost(domain)
+		if fallbackErr != nil {
+			logger.Error("Fallback DNS lookup also failed", 
+				zap.String("func", "ResolveDomain"), 
+				zap.String("domain", domain), 
+				zap.Error(fallbackErr))
+			return nil, errors.WrapError(fallbackErr, fmt.Sprintf("both DoH and standard DNS failed for domain %s", domain))
+		}
+		return ips, nil
 	}
 
+	logger.Info("Domain resolved successfully with DoH", 
+		zap.String("func", "ResolveDomain"), 
+		zap.String("domain", domain), 
+		zap.Strings("ips", ips))
 	return ips, nil
 }
 
 // resolveWithDoH 使用DoH解析域名
 func (doh *DoHHelper) resolveWithDoH(domain string) ([]string, error) {
+	logger.Debug("Resolving domain with DoH", zap.String("func", "resolveWithDoH"), zap.String("domain", domain))
+	
 	var lastError error
 
 	// 尝试所有DoH服务器
 	for _, server := range doh.dohServers {
 		ips, err := doh.queryDoHServer(server, domain)
 		if err != nil {
+			logger.Warn("DoH server query failed", 
+				zap.String("func", "resolveWithDoH"), 
+				zap.String("server", server), 
+				zap.String("domain", domain), 
+				zap.Error(err))
 			lastError = err
 			continue
 		}
 
 		if len(ips) > 0 {
+			logger.Info("DoH server query succeeded", 
+				zap.String("func", "resolveWithDoH"), 
+				zap.String("server", server), 
+				zap.String("domain", domain), 
+				zap.Strings("ips", ips))
 			return ips, nil
 		}
 	}
 
-	return nil, fmt.Errorf("all DoH servers failed, last error: %v", lastError)
+	logger.Error("All DoH servers failed", 
+		zap.String("func", "resolveWithDoH"), 
+		zap.String("domain", domain), 
+		zap.Error(lastError))
+	return nil, errors.WrapError(lastError, fmt.Sprintf("all DoH servers failed for domain %s", domain))
 }
 
 // queryDoHServer 查询DoH服务器
 func (doh *DoHHelper) queryDoHServer(server, domain string) ([]string, error) {
+	logger.Debug("Querying DoH server", 
+		zap.String("func", "queryDoHServer"), 
+		zap.String("server", server), 
+		zap.String("domain", domain))
+	
+	if server == "" {
+		logger.Error("Server cannot be empty", zap.String("func", "queryDoHServer"))
+		return nil, errors.NewAppError(http.StatusBadRequest, "server cannot be empty", "")
+	}
+	
+	if domain == "" {
+		logger.Error("Domain cannot be empty", zap.String("func", "queryDoHServer"))
+		return nil, errors.NewAppError(http.StatusBadRequest, "domain cannot be empty", "")
+	}
+
 	// 构建DoH请求
 	request := DoHRequest{
 		Name: domain,
@@ -273,26 +434,47 @@ func (doh *DoHHelper) queryDoHServer(server, domain string) ([]string, error) {
 	// 发送HTTP请求
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
+		logger.Error("Failed to create HTTP request", 
+			zap.String("func", "queryDoHServer"), 
+			zap.String("url", url), 
+			zap.Error(err))
+		return nil, errors.WrapError(err, "failed to create request")
 	}
 
 	req.Header.Set("Accept", "application/dns-json")
 	req.Header.Set("User-Agent", "MoviePilot-DoH/1.0")
 
+	logger.Debug("Sending DoH request", 
+		zap.String("func", "queryDoHServer"), 
+		zap.String("url", url))
+
 	resp, err := doh.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		logger.Error("Failed to send HTTP request", 
+			zap.String("func", "queryDoHServer"), 
+			zap.String("url", url), 
+			zap.Error(err))
+		return nil, errors.WrapError(err, "failed to send request")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("server returned status: %d", resp.StatusCode)
+		logger.Error("DoH server returned non-OK status", 
+			zap.String("func", "queryDoHServer"), 
+			zap.String("server", server), 
+			zap.Int("status_code", resp.StatusCode))
+		return nil, errors.NewAppError(resp.StatusCode, 
+			fmt.Sprintf("server returned status: %d", resp.StatusCode), "")
 	}
 
 	// 解析响应
 	var dohResponse DoHResponse
 	if err := json.NewDecoder(resp.Body).Decode(&dohResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
+		logger.Error("Failed to decode DoH response", 
+			zap.String("func", "queryDoHServer"), 
+			zap.String("server", server), 
+			zap.Error(err))
+		return nil, errors.WrapError(err, "failed to decode response")
 	}
 
 	// 提取IP地址
@@ -302,9 +484,25 @@ func (doh *DoHHelper) queryDoHServer(server, domain string) ([]string, error) {
 			ips = append(ips, answer.Data)
 			// 缓存结果
 			doh.setCachedIP(domain, answer.Data, answer.TTL)
+			logger.Debug("Found A record", 
+				zap.String("func", "queryDoHServer"), 
+				zap.String("domain", domain), 
+				zap.String("ip", answer.Data), 
+				zap.Int("ttl", answer.TTL))
 		}
 	}
 
+	if len(ips) == 0 {
+		logger.Warn("No A records found in DoH response", 
+			zap.String("func", "queryDoHServer"), 
+			zap.String("domain", domain))
+	}
+
+	logger.Debug("DoH query completed", 
+		zap.String("func", "queryDoHServer"), 
+		zap.String("domain", domain), 
+		zap.Strings("ips", ips))
+	
 	return ips, nil
 }
 
@@ -353,10 +551,15 @@ func (doh *DoHHelper) buildDNSMessage(request DoHRequest) []byte {
 
 // ClearCache 清空缓存
 func (doh *DoHHelper) ClearCache() {
+	logger.Debug("Clearing DNS cache", zap.String("func", "ClearCache"))
+	
 	doh.cacheMutex.Lock()
 	defer doh.cacheMutex.Unlock()
 
+	cacheSize := len(doh.cache)
 	doh.cache = make(map[string]*DNSCacheEntry)
+	
+	logger.Info("DNS cache cleared", zap.String("func", "ClearCache"), zap.Int("cleared_entries", cacheSize))
 }
 
 // GetCacheSize 获取缓存大小
@@ -399,14 +602,28 @@ func (doh *DoHHelper) RemoveExpiredEntries() {
 
 // TestDoHServer 测试DoH服务器
 func (doh *DoHHelper) TestDoHServer(server string) error {
+	logger.Debug("Testing DoH server", zap.String("func", "TestDoHServer"), zap.String("server", server))
+	
+	if server == "" {
+		logger.Error("Server cannot be empty", zap.String("func", "TestDoHServer"))
+		return errors.NewAppError(http.StatusBadRequest, "server cannot be empty", "")
+	}
+	
 	// 使用一个常见的域名进行测试
 	testDomain := "google.com"
 	
 	_, err := doh.queryDoHServer(server, testDomain)
 	if err != nil {
-		return fmt.Errorf("DoH server test failed: %v", err)
+		logger.Error("DoH server test failed", 
+			zap.String("func", "TestDoHServer"), 
+			zap.String("server", server), 
+			zap.Error(err))
+		return errors.WrapError(err, fmt.Sprintf("DoH server %s test failed", server))
 	}
 
+	logger.Info("DoH server test passed", 
+		zap.String("func", "TestDoHServer"), 
+		zap.String("server", server))
 	return nil
 }
 
@@ -447,12 +664,24 @@ func (doh *DoHHelper) ExportConfig() map[string]interface{} {
 
 // ImportConfig 导入配置
 func (doh *DoHHelper) ImportConfig(config map[string]interface{}) error {
+	logger.Debug("Importing DoH configuration", zap.String("func", "ImportConfig"))
+	
+	if config == nil {
+		logger.Error("Config cannot be nil", zap.String("func", "ImportConfig"))
+		return errors.NewAppError(http.StatusBadRequest, "config cannot be nil", "")
+	}
+
 	if enabled, ok := config["enabled"].(bool); ok {
 		if enabled {
 			if domains, ok := config["domains"].([]string); ok {
 				if err := doh.Enable(domains); err != nil {
-					return err
+					logger.Error("Failed to enable DoH during config import", 
+						zap.String("func", "ImportConfig"), 
+						zap.Error(err))
+					return errors.WrapError(err, "failed to enable DoH")
 				}
+			} else {
+				logger.Warn("Enabled is true but no domains provided", zap.String("func", "ImportConfig"))
 			}
 		} else {
 			doh.Disable()
@@ -470,8 +699,14 @@ func (doh *DoHHelper) ImportConfig(config map[string]interface{}) error {
 	if timeoutStr, ok := config["timeout"].(string); ok {
 		if timeout, err := time.ParseDuration(timeoutStr); err == nil {
 			doh.SetTimeout(timeout)
+		} else {
+			logger.Warn("Invalid timeout format in config", 
+				zap.String("func", "ImportConfig"), 
+				zap.String("timeout", timeoutStr), 
+				zap.Error(err))
 		}
 	}
 
+	logger.Info("DoH configuration imported successfully", zap.String("func", "ImportConfig"))
 	return nil
 }

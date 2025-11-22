@@ -47,7 +47,7 @@ func (cf *CloudflareHelper) UnderChallenge(htmlText string) bool {
 
 	// 检查标题匹配
 	for _, challengeTitle := range cf.challengeTitles {
-		if strings.ToLower(title) == strings.ToLower(challengeTitle) {
+		if strings.EqualFold(title, challengeTitle) {
 			return true
 		}
 	}
@@ -126,7 +126,7 @@ func (cf *CloudflareHelper) IsCloudflareError(errorMsg string) bool {
 		"captcha",
 		"security check",
 	}
-	
+
 	lowerError := strings.ToLower(errorMsg)
 	for _, cfError := range cfErrors {
 		if strings.Contains(lowerError, cfError) {

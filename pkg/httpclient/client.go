@@ -22,6 +22,10 @@ type Client struct {
 	headers    map[string]string
 }
 
+func (c *Client) Do(req *http.Request) (any, error) {
+	panic("unimplemented")
+}
+
 // Options 客户端配置选项
 type Options struct {
 	BaseURL string            // 基础URL

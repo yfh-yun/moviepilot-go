@@ -12,22 +12,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
-	
-	"moviepilot-go/internal/apis/handlers"
-	"moviepilot-go/internal/apis/routes"
-	"moviepilot-go/internal/infrastructure/config"
-	"moviepilot-go/pkg/cache"
-	"moviepilot-go/pkg/database"
+
+	"moviepilot-go/internal/api/middleware"
+	"moviepilot-go/internal/api/routes"
+	"moviepilot-go/internal/config"
+	cacheRedis "moviepilot-go/pkg/cache/redis"
 	"moviepilot-go/pkg/logger"
-	"moviepilot-go/internal/apis/middlewares"
-	repoInterfaces "moviepilot-go/internal/repositories"
-	"moviepilot-go/internal/repositories/migrations"
-	"moviepilot-go/internal/repositories/repositories"
-	"moviepilot-go/internal/schedulers"
-	"moviepilot-go/internal/business/services/message"
-	"moviepilot-go/internal/business/services/plugin"
+	"moviepilot-go/pkg/middlewares"
 )
 
 const (
@@ -58,12 +50,6 @@ const (
 // @in header
 // @name Authorization
 func main() {
-	// Initialize configuration
-	if err := config.Init(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize config: %v\n", err)
-		os.Exit(1)
-	}
-
 	// Initialize logger
 	if err := logger.Init(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
@@ -79,112 +65,47 @@ func main() {
 		zap.String("go_arch", runtime.GOARCH),
 	)
 
-	// Initialize database
-	if err := database.Init(); err != nil {
-		zapLogger.Fatal("Failed to initialize database", zap.Error(err))
+	// Load application configuration
+	cfgManager, err := config.NewManager(config.Options{})
+	if err != nil {
+		zapLogger.Fatal("Failed to load configuration", zap.Error(err))
 	}
+	cfg := cfgManager.Get()
 
-	// Run database migrations
-	if err := runMigrations(); err != nil {
-		zapLogger.Fatal("Failed to run database migrations", zap.Error(err))
-	}
-
-	// Initialize cache
-	if err := cache.Init(); err != nil {
-		zapLogger.Fatal("Failed to initialize cache", zap.Error(err))
+	// Initialize Redis cache client
+	if _, err := cacheRedis.Init(cacheRedis.Options{
+		Host:     cfg.Redis.Host,
+		Port:     cfg.Redis.Port,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	}); err != nil {
+		zapLogger.Fatal("Failed to initialize Redis cache", zap.Error(err))
 	}
 
 	// Set Gin mode based on configuration
-	env := viper.GetString("server.env")
-	if env == "" {
-		env = "development"
-	}
-	if env == "production" {
+	if cfg.App.Environment == "production" || !cfg.App.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
 		gin.SetMode(gin.DebugMode)
 	}
 
-	// Create base handler
-	baseHandler := handlers.NewBaseHandler()
+	// Initialize Gin engine
+	engine := gin.New()
 
-	// Create router configuration
-	routerConfig := &routes.RouterConfig{
-		BaseHandler: baseHandler,
-	}
+	// Add essential middleware
+	engine.Use(middlewares.RequestIDMiddleware())
+	engine.Use(middlewares.RecoveryMiddleware())
+	engine.Use(middlewares.CORSMiddleware())
+	engine.Use(middlewares.RateLimitMiddleware())
 
-	// Setup routes
-	engine := routes.SetupRouter(routerConfig)
+	// Add request logging middleware
+	engine.Use(middleware.RequestLoggingMiddleware())
 
-	// Add global middleware
-	engine.Use(middlewares.LoggerMiddleware(zapLogger))
-	// TODO: Add other middleware when implemented
-	// engine.Use(middlewares.RequestIDMiddleware())
-	// engine.Use(middlewares.RecoveryMiddleware())
-	// engine.Use(middlewares.CORSMiddleware())
-
-	// Check if scheduler is enabled
-	if viper.GetBool("scheduler.enabled") {
-		// Create dependency services
-		db := database.GetDB()
-
-		// Create all repositories
-		repos := repoInterfaces.NewRepositories(db)
-		workflowRepo := repos.Workflow
-		messageRepo := repos.Message
-		userRepo := repos.User
-		
-		// TODO: Create plugin repository when implemented
-		// pluginRepo := repositories.NewPluginRepository(db)
-		var pluginRepo interface{} // temporary placeholder
-
-		// Create message service instance
-		messageService := message.NewMessageService(messageRepo, userRepo, zapLogger)
-
-		// Create plugin service instance
-		basePath := viper.GetString("app.base_path")
-		if basePath == "" {
-			basePath = "./"
-		}
-		pluginService := plugin.NewPluginService(pluginRepo, zapLogger, basePath)
-
-		zapLogger.Info("Creating scheduler dependency services...")
-
-		// Initialize scheduler service
-		schedulerService, err := schedulers.NewSchedulerService(
-			zapLogger,
-			workflowRepo,
-			nil, // subscribeService - TODO: implement
-			nil, // downloadService - TODO: implement
-			messageService,
-			pluginService,
-		)
-
-		if err != nil {
-			zapLogger.Error("Failed to initialize scheduler service", zap.Error(err))
-		} else {
-			// Start scheduler service
-			if err := schedulerService.Start(); err != nil {
-				zapLogger.Error("Failed to start scheduler service", zap.Error(err))
-			} else {
-				zapLogger.Info("Scheduler service started successfully")
-
-				// Stop scheduler service when server shuts down
-				defer schedulerService.Stop()
-			}
-		}
-	} else {
-		zapLogger.Info("Scheduler service is disabled in configuration")
-	}
-
-// startTime tracks when the server started
+	// startTime tracks when the server started
 	startTime := time.Now()
 
 	// Get server port from configuration
-	port := viper.GetString("server.port")
-	if port == "" {
-		port = DefaultPort
-	}
+	port := cfg.Server.Port
 
 	// Health check endpoint
 	engine.GET("/health", func(c *gin.Context) {
@@ -197,20 +118,25 @@ func main() {
 		})
 	})
 
+	// Register API routes via centralized router
+	if err := routes.Register(engine, routes.Config{Logger: zapLogger}); err != nil {
+		zapLogger.Fatal("Failed to register routes", zap.Error(err))
+	}
+
 	// Create HTTP server with proper configuration
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, port),
 		Handler:      engine,
-		ReadTimeout:  time.Duration(viper.GetInt("server.read_timeout")) * time.Second,
-		WriteTimeout: time.Duration(viper.GetInt("server.write_timeout")) * time.Second,
-		IdleTimeout:  time.Duration(viper.GetInt("server.idle_timeout")) * time.Second,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
+		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		zapLogger.Info("Server starting", 
-			zap.String("port", port),
-			zap.String("env", env),
+		zapLogger.Info("Server starting",
+			zap.Int("port", port),
+			zap.String("env", cfg.App.Environment),
 		)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			zapLogger.Fatal("Failed to start server", zap.Error(err))
@@ -226,11 +152,8 @@ func main() {
 
 	// The context is used to inform the server it has the configured timeout to finish
 	// the request it is currently handling
-	shutdownTimeout := time.Duration(viper.GetInt("server.shutdown_timeout")) * time.Second
-	if shutdownTimeout == 0 {
-		shutdownTimeout = time.Duration(DefaultShutdownTimeout) * time.Second
-	}
-	
+	shutdownTimeout := cfg.Server.ShutdownTimeout
+
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
@@ -239,25 +162,4 @@ func main() {
 	}
 
 	zapLogger.Info("Server exited gracefully")
-}
-
-// runMigrations runs database migrations
-func runMigrations() error {
-	zapLogger := logger.GetLogger()
-	zapLogger.Info("Starting database migrations")
-	
-	// Get database instance
-	db := database.GetDB()
-	if db == nil {
-		return fmt.Errorf("database not initialized")
-	}
-	
-	// Run migrations
-	migration := migrations.NewMigration(db)
-	if err := migration.Run(); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
-	}
-	
-	zapLogger.Info("Database migrations completed successfully")
-	return nil
 }

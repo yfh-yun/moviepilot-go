@@ -5,12 +5,13 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"sync"
 )
 
 // DisplayHelper 虚拟显示管理助手
 type DisplayHelper struct {
-	display     *VirtualDisplay
+	display     VirtualDisplay
 	isDocker    bool
 	displaySize DisplaySize
 	mutex       sync.RWMutex

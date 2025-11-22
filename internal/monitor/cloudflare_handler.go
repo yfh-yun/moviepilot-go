@@ -1,16 +1,15 @@
 package monitor
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
+	"moviepilot-go/pkg/errors"
+	"moviepilot-go/pkg/logger"
 	"github.com/PuerkitoBio/goquery"
-	"github.com/chromedp/chromedp"
 	"go.uber.org/zap"
 )
 
@@ -31,13 +30,19 @@ type CloudflareConfig struct {
 	CheckInterval    time.Duration `json:"check_interval"`
 	SolveMethod      string        `json:"solve_method"` // "browser", "api"
 	JavaScriptEnabled bool         `json:"javascript_enabled"`
+	Headers          map[string]string `json:"headers,omitempty"`
 }
 
 // NewCloudflareHandler 创建Cloudflare处理器
-func NewCloudflareHandler(config CloudflareConfig, logger *zap.Logger) *CloudflareHandler {
+func NewCloudflareHandler(config CloudflareConfig, zapLogger *zap.Logger) *CloudflareHandler {
+	logger.Debug("Creating new CloudflareHandler instance", 
+		zap.String("func", "NewCloudflareHandler"),
+		zap.Bool("enabled", config.Enabled),
+		zap.String("solve_method", config.SolveMethod))
+	
 	return &CloudflareHandler{
 		config: config,
-		logger: logger,
+		logger: zapLogger,
 	}
 }
 
@@ -48,8 +53,14 @@ func (cf *CloudflareHandler) SetBrowserMonitor(browser *BrowserMonitor) {
 
 // HandleChallenge 处理Cloudflare挑战
 func (cf *CloudflareHandler) HandleChallenge(targetURL string, httpClient *http.Client) (*CloudflareInfo, error) {
+	logger.Debug("Handling Cloudflare challenge", 
+		zap.String("func", "CloudflareHandler.HandleChallenge"),
+		zap.String("url", targetURL))
+	
 	if !cf.config.Enabled {
-		return nil, fmt.Errorf("Cloudflare挑战处理已禁用")
+		logger.Warn("Cloudflare challenge handling is disabled", 
+			zap.String("func", "CloudflareHandler.HandleChallenge"))
+		return nil, errors.NewAppError(http.StatusBadRequest, "Cloudflare挑战处理已禁用", "CLOUDFLARE_DISABLED")
 	}
 	
 	cf.logger.Info("开始处理Cloudflare挑战", zap.String("url", targetURL))
@@ -99,9 +110,17 @@ func (cf *CloudflareHandler) HandleChallenge(targetURL string, httpClient *http.
 
 // detectChallenge 检测Cloudflare挑战
 func (cf *CloudflareHandler) detectChallenge(targetURL string, httpClient *http.Client) (bool, string, error) {
+	logger.Debug("Detecting Cloudflare challenge", 
+		zap.String("func", "CloudflareHandler.detectChallenge"),
+		zap.String("url", targetURL))
+	
 	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
-		return false, "", err
+		logger.Error("Failed to create HTTP request", 
+			zap.String("func", "CloudflareHandler.detectChallenge"),
+			zap.String("url", targetURL),
+			zap.Error(err))
+		return false, "", errors.WrapError(err, "failed to create HTTP request")
 	}
 	
 	if cf.config.UserAgent != "" {
@@ -204,14 +223,24 @@ func (cf *CloudflareHandler) detectChallenge(targetURL string, httpClient *http.
 
 // solveWithBrowser 使用浏览器解决挑战
 func (cf *CloudflareHandler) solveWithBrowser(targetURL string, info *CloudflareInfo) error {
+	logger.Debug("Solving Cloudflare challenge with browser", 
+		zap.String("func", "CloudflareHandler.solveWithBrowser"),
+		zap.String("url", targetURL))
+	
 	if cf.browser == nil {
-		return fmt.Errorf("浏览器监控器未设置")
+		logger.Error("Browser monitor is not set", 
+			zap.String("func", "CloudflareHandler.solveWithBrowser"))
+		return errors.NewAppError(http.StatusInternalServerError, "浏览器监控器未设置", "BROWSER_MONITOR_NOT_SET")
 	}
 	
 	browserID := fmt.Sprintf("cf_solve_%d", time.Now().Unix())
-	instance, err := cf.browser.CreateBrowser(browserID)
+	_, err := cf.browser.CreateBrowser(browserID)
 	if err != nil {
-		return fmt.Errorf("创建浏览器实例失败: %w", err)
+		logger.Error("Failed to create browser instance", 
+			zap.String("func", "CloudflareHandler.solveWithBrowser"),
+			zap.String("browser_id", browserID),
+			zap.Error(err))
+		return errors.WrapError(err, "创建浏览器实例失败")
 	}
 	defer cf.browser.CloseBrowser(browserID)
 	
@@ -220,7 +249,12 @@ func (cf *CloudflareHandler) solveWithBrowser(targetURL string, info *Cloudflare
 	// 导航到目标URL
 	err = cf.browser.Navigate(browserID, targetURL)
 	if err != nil {
-		return fmt.Errorf("导航失败: %w", err)
+		logger.Error("Failed to navigate to target URL", 
+			zap.String("func", "CloudflareHandler.solveWithBrowser"),
+			zap.String("browser_id", browserID),
+			zap.String("url", targetURL),
+			zap.Error(err))
+		return errors.WrapError(err, "导航失败")
 	}
 	
 	cf.logger.Info("等待Cloudflare挑战解决", zap.String("browser_id", browserID))
@@ -272,6 +306,10 @@ func (cf *CloudflareHandler) solveWithBrowser(targetURL string, info *Cloudflare
 
 // solveWithAPI 使用API解决挑战
 func (cf *CloudflareHandler) solveWithAPI(targetURL string, info *CloudflareInfo) error {
+	logger.Debug("Solving Cloudflare challenge with API", 
+		zap.String("func", "CloudflareHandler.solveWithAPI"),
+		zap.String("url", targetURL))
+	
 	// API解决通常需要第三方服务
 	// 这里提供一个框架，实际实现需要集成具体的解决服务
 	
@@ -280,7 +318,7 @@ func (cf *CloudflareHandler) solveWithAPI(targetURL string, info *CloudflareInfo
 	info.RequiredAction = "api_solve_not_implemented"
 	info.Solved = false
 	
-	return fmt.Errorf("API解决方法尚未实现")
+	return errors.NewAppError(http.StatusNotImplemented, "API解决方法尚未实现", "API_SOLVE_NOT_IMPLEMENTED")
 }
 
 // isChallengePage 检查是否是挑战页面
@@ -318,6 +356,12 @@ func (cf *CloudflareHandler) GetOptimalUserAgent() string {
 
 // BuildHTTPClient 构建HTTP客户端
 func (cf *CloudflareHandler) BuildHTTPClient(cookies map[string]string, headers map[string]string) *http.Client {
+	logger.Debug("Building HTTP client for Cloudflare", 
+		zap.String("func", "CloudflareHandler.BuildHTTPClient"),
+		zap.Duration("timeout", cf.config.Timeout),
+		zap.Int("cookies_count", len(cookies)),
+		zap.Int("headers_count", len(headers)))
+	
 	client := &http.Client{
 		Timeout: cf.config.Timeout,
 	}
@@ -334,11 +378,20 @@ func (cf *CloudflareHandler) BuildHTTPClient(cookies map[string]string, headers 
 
 // ValidateChallengeSolution 验证挑战解决方案
 func (cf *CloudflareHandler) ValidateChallengeSolution(targetURL string, cookies map[string]string) (bool, error) {
+	logger.Debug("Validating Cloudflare challenge solution", 
+		zap.String("func", "CloudflareHandler.ValidateChallengeSolution"),
+		zap.String("url", targetURL),
+		zap.Int("cookies_count", len(cookies)))
+	
 	client := cf.BuildHTTPClient(cookies, cf.config.Headers)
 	
 	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
-		return false, err
+		logger.Error("Failed to create validation request", 
+			zap.String("func", "CloudflareHandler.ValidateChallengeSolution"),
+			zap.String("url", targetURL),
+			zap.Error(err))
+		return false, errors.WrapError(err, "failed to create validation request")
 	}
 	
 	// 设置Cookie
@@ -381,6 +434,13 @@ func (cf *CloudflareHandler) GetChallengeType(challengeType string) string {
 
 // UpdateConfig 更新配置
 func (cf *CloudflareHandler) UpdateConfig(config CloudflareConfig) {
+	logger.Debug("Updating Cloudflare handler configuration", 
+		zap.String("func", "CloudflareHandler.UpdateConfig"),
+		zap.Bool("enabled", config.Enabled),
+		zap.Duration("timeout", config.Timeout),
+		zap.Int("max_retries", config.MaxRetries),
+		zap.String("solve_method", config.SolveMethod))
+	
 	cf.config = config
 	
 	cf.logger.Info("更新Cloudflare处理器配置",

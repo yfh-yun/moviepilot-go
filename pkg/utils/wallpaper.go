@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -39,20 +38,20 @@ type BingWallpaperResponse struct {
 
 // BingImage Bing图片信息
 type BingImage struct {
-	URL         string `json:"url"`
-	Title       string `json:"title"`
-	Copyright   string `json:"copyright"`
+	URL           string `json:"url"`
+	Title         string `json:"title"`
+	Copyright     string `json:"copyright"`
 	CopyrightLink string `json:"copyrightlink"`
-	Date        string `json:"date"`
+	Date          string `json:"date"`
 }
 
 // TMDBImage TMDB图片信息
 type TMDBImage struct {
-	FilePath string `json:"file_path"`
-	Width    int    `json:"width"`
-	Height   int    `json:"height"`
+	FilePath string  `json:"file_path"`
+	Width    int     `json:"width"`
+	Height   int     `json:"height"`
 	VoteAvg  float64 `json:"vote_average"`
-	VoteCnt  int    `json:"vote_count"`
+	VoteCnt  int     `json:"vote_count"`
 }
 
 // NewWallpaperHelper 创建壁纸助手实例
@@ -134,7 +133,7 @@ func (wh *WallpaperHelper) getBingWallpaper() (string, error) {
 
 	// 获取Bing壁纸
 	url := "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN"
-	
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %v", err)
@@ -180,7 +179,7 @@ func (wh *WallpaperHelper) getBingWallpapers(num int) ([]string, error) {
 
 	// 获取多张Bing壁纸
 	url := fmt.Sprintf("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=%d&mkt=zh-CN", num)
-	
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
@@ -293,7 +292,7 @@ func (wh *WallpaperHelper) getTMDBWallpapers(num int) ([]string, error) {
 // getCachedWallpaper 获取缓存的壁纸
 func (wh *WallpaperHelper) getCachedWallpaper(cacheKey string, ttl time.Duration) string {
 	cacheFile := filepath.Join(wh.cacheDir, cacheKey+".txt")
-	
+
 	file, err := os.Stat(cacheFile)
 	if err != nil {
 		return ""
@@ -324,7 +323,7 @@ func (wh *WallpaperHelper) setCachedWallpaper(cacheKey, imageURL string) error {
 // getCachedWallpaperList 获取缓存的壁纸列表
 func (wh *WallpaperHelper) getCachedWallpaperList(cacheKey string, ttl time.Duration) []string {
 	cacheFile := filepath.Join(wh.cacheDir, cacheKey+".json")
-	
+
 	file, err := os.Stat(cacheFile)
 	if err != nil {
 		return nil
@@ -373,7 +372,7 @@ func (wh *WallpaperHelper) DownloadWallpaper(imageURL string) (string, error) {
 	if ext == "" {
 		ext = ".jpg"
 	}
-	
+
 	filename := fmt.Sprintf("wallpaper_%d%s", time.Now().Unix(), ext)
 	filePath := filepath.Join(wh.cacheDir, filename)
 
@@ -435,7 +434,7 @@ func (wh *WallpaperHelper) GetRandomWallpaper() (string, error) {
 	// 随机选择一张
 	rand.Seed(time.Now().UnixNano())
 	index := rand.Intn(len(wallpapers))
-	
+
 	return wallpapers[index], nil
 }
 
@@ -451,7 +450,7 @@ func (wh *WallpaperHelper) ClearCache() error {
 // GetCacheSize 获取缓存大小
 func (wh *WallpaperHelper) GetCacheSize() (int64, error) {
 	var size int64
-	
+
 	err := filepath.Walk(wh.cacheDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -559,7 +558,7 @@ func (wh *WallpaperHelper) GetStats() map[string]interface{} {
 // getCacheFileCount 获取缓存文件数量
 func (wh *WallpaperHelper) getCacheFileCount() int {
 	count := 0
-	
+
 	filepath.Walk(wh.cacheDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err

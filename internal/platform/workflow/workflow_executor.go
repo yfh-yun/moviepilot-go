@@ -2,18 +2,19 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"moviepilot-go/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // DefaultWorkflowExecutor 默认工作流执行器
 type DefaultWorkflowExecutor struct {
 	manager   *WorkflowManagerImpl
 	workflow  *Workflow
-	logger    logger.Logger
+	logger    *zap.Logger
 	cancelCh  chan struct{}
 	mutex     sync.RWMutex
 	wg        sync.WaitGroup
@@ -22,7 +23,7 @@ type DefaultWorkflowExecutor struct {
 }
 
 // NewDefaultWorkflowExecutor 创建默认工作流执行器
-func NewDefaultWorkflowExecutor(manager *WorkflowManagerImpl, workflow *Workflow, logger logger.Logger) *DefaultWorkflowExecutor {
+func NewDefaultWorkflowExecutor(manager *WorkflowManagerImpl, workflow *Workflow, logger *zap.Logger) *DefaultWorkflowExecutor {
 	return &DefaultWorkflowExecutor{
 		manager:  manager,
 		workflow: workflow,
@@ -102,7 +103,7 @@ func (e *DefaultWorkflowExecutor) Cancel() error {
 
 // executeTasks 执行所有任务
 func (e *DefaultWorkflowExecutor) executeTasks(ctx *WorkflowContext) error {
-	e.logger.Info("Starting workflow execution", "workflow_id", e.workflow.ID, "task_count", len(e.workflow.Tasks))
+	e.logger.Info("Starting workflow execution", zap.String("workflow_id", e.workflow.ID), zap.Int("task_count", len(e.workflow.Tasks)))
 
 	// 初始化任务状态映射
 	taskStatus := make(map[string]TaskStatus)
@@ -144,8 +145,8 @@ func (e *DefaultWorkflowExecutor) executeTasks(ctx *WorkflowContext) error {
 			}
 		case <-e.cancelCh:
 			return ErrWorkflowCanceled
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-ctx.Context.Done():
+			return ctx.Context.Err()
 		}
 	}
 }
@@ -264,15 +265,16 @@ func (e *DefaultWorkflowExecutor) executeTask(task Task, ctx *WorkflowContext) (
 	result.Duration = time.Since(startTime)
 
 	// 通知观察者
-	if result.Status == TaskCompleted {
+	switch result.Status {
+	case TaskCompleted:
 		e.manager.notifyObservers(func(observer WorkflowObserver) {
 			observer.OnTaskCompleted(e.workflow, task, result)
 		})
-	} else if result.Status == TaskFailed {
+	case TaskFailed:
 		e.manager.notifyObservers(func(observer WorkflowObserver) {
-			observer.OnTaskFailed(e.workflow, task, fmt.Errorf(result.Error))
+			observer.OnTaskFailed(e.workflow, task, errors.New(result.Error))
 		})
-	} else if result.Status == TaskSkipped {
+	case TaskSkipped:
 		e.manager.notifyObservers(func(observer WorkflowObserver) {
 			observer.OnTaskSkipped(e.workflow, task)
 		})
@@ -296,12 +298,12 @@ func (e *DefaultWorkflowExecutor) executeTaskOnce(task Task, ctx *WorkflowContex
 		e.waitForResume()
 	}
 
-	e.logger.Info("Executing task", "task_id", task.ID(), "task_name", task.Name())
+	e.logger.Info("Executing task", zap.String("task_id", task.ID()), zap.String("task_name", task.Name()))
 
 	// 执行任务
 	result, err := task.Run(ctx)
 	if err != nil {
-		e.logger.Error("Task execution failed", "task_id", task.ID(), "error", err.Error())
+		e.logger.Error("Task execution failed", zap.String("task_id", task.ID()), zap.String("error", err.Error()))
 		return &TaskResult{
 			Status:    TaskFailed,
 			Error:     err.Error(),
@@ -317,7 +319,7 @@ func (e *DefaultWorkflowExecutor) executeTaskOnce(task Task, ctx *WorkflowContex
 		}
 	}
 
-	e.logger.Info("Task executed successfully", "task_id", task.ID())
+	e.logger.Info("Task executed successfully", zap.String("task_id", task.ID()))
 	return result, nil
 }
 
@@ -340,13 +342,13 @@ func (e *DefaultWorkflowExecutor) executeTaskWithRetry(task Task, ctx *WorkflowC
 
 		// 检查是否应该重试
 		if !strategy.ShouldRetry(attempt, lastErr) {
-			e.logger.Info("Task retry limit reached", "task_id", task.ID(), "attempts", attempt+1)
+			e.logger.Info("Task retry limit reached", zap.String("task_id", task.ID()), zap.Int("attempts", attempt+1))
 			return result, nil
 		}
 
 		// 等待重试延迟
 		delay := strategy.GetDelay(attempt)
-		e.logger.Info("Retrying task", "task_id", task.ID(), "attempt", attempt+1, "delay", delay)
+		e.logger.Info("Retrying task", zap.String("task_id", task.ID()), zap.Int("attempt", attempt+1), zap.Duration("delay", delay))
 
 		select {
 		case <-time.After(delay):
@@ -365,13 +367,13 @@ func (e *DefaultWorkflowExecutor) waitForResume() {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	e.logger.Info("Task execution paused", "workflow_id", e.workflow.ID)
+	e.logger.Info("Task execution paused", zap.String("workflow_id", e.workflow.ID))
 
 	for {
 		select {
 		case <-ticker.C:
 			if e.workflow.Status == StatusRunning {
-				e.logger.Info("Task execution resumed", "workflow_id", e.workflow.ID)
+				e.logger.Info("Task execution resumed", zap.String("workflow_id", e.workflow.ID))
 				return
 			}
 		case <-e.cancelCh:
@@ -417,12 +419,12 @@ func (e *DefaultWorkflowExecutor) updateWorkflowResult(result *TaskResult) {
 	e.workflow.mutex.Lock()
 	e.workflow.Result = result
 	e.workflow.UpdatedAt = time.Now()
-	
+
 	// 如果工作流完成，关闭done通道
 	if result.Status == TaskCompleted || result.Status == TaskFailed {
 		close(e.workflow.doneCh)
 	}
-	
+
 	e.workflow.mutex.Unlock()
 }
 
@@ -430,12 +432,12 @@ func (e *DefaultWorkflowExecutor) updateWorkflowResult(result *TaskResult) {
 type SequentialWorkflowExecutor struct {
 	manager  *WorkflowManagerImpl
 	workflow *Workflow
-	logger   logger.Logger
+	logger   *zap.Logger
 	cancelCh chan struct{}
 }
 
 // NewSequentialWorkflowExecutor 创建顺序执行器
-func NewSequentialWorkflowExecutor(manager *WorkflowManagerImpl, workflow *Workflow, logger logger.Logger) *SequentialWorkflowExecutor {
+func NewSequentialWorkflowExecutor(manager *WorkflowManagerImpl, workflow *Workflow, logger *zap.Logger) *SequentialWorkflowExecutor {
 	return &SequentialWorkflowExecutor{
 		manager:  manager,
 		workflow: workflow,
@@ -532,7 +534,7 @@ func (e *SequentialWorkflowExecutor) executeTask(task Task, ctx *WorkflowContext
 	default:
 	}
 
-	e.logger.Info("Executing task sequentially", "task_id", task.ID(), "task_name", task.Name())
+	e.logger.Info("Executing task sequentially", zap.String("task_id", task.ID()), zap.String("task_name", task.Name()))
 
 	// 通知观察者任务开始
 	e.manager.notifyObservers(func(observer WorkflowObserver) {
@@ -542,7 +544,7 @@ func (e *SequentialWorkflowExecutor) executeTask(task Task, ctx *WorkflowContext
 	// 执行任务
 	result, err := task.Run(ctx)
 	if err != nil {
-		e.logger.Error("Task execution failed", "task_id", task.ID(), "error", err.Error())
+		e.logger.Error("Task execution failed", zap.String("task_id", task.ID()), zap.String("error", err.Error()))
 
 		// 通知观察者任务失败
 		e.manager.notifyObservers(func(observer WorkflowObserver) {
@@ -573,6 +575,6 @@ func (e *SequentialWorkflowExecutor) executeTask(task Task, ctx *WorkflowContext
 		observer.OnTaskCompleted(e.workflow, task, result)
 	})
 
-	e.logger.Info("Task executed successfully", "task_id", task.ID())
+	e.logger.Info("Task executed successfully", zap.String("task_id", task.ID()))
 	return result, nil
 }

@@ -440,20 +440,20 @@ func (sch *ServiceConfigHelper) GetServiceInfo(configType, configName string) (*
 // GetEnabledConfigs 获取启用的配置
 func (sch *ServiceConfigHelper) GetEnabledConfigs(configType string) []ServiceConfig {
 	configs := sch.GetConfigs(configType)
-	var enabled []ServiceConfig
+	var result []ServiceConfig
 
 	for _, config := range configs {
 		if enabled, exists := config.Config["enabled"]; exists {
 			if enabledBool, ok := enabled.(bool); ok && enabledBool {
-				enabled = append(enabled, config)
+				result = append(result, config)
 			}
 		} else {
 			// 默认启用
-			enabled = append(enabled, config)
+			result = append(result, config)
 		}
 	}
 
-	return enabled
+	return result
 }
 
 // GetConfigsByType 根据服务类型获取配置

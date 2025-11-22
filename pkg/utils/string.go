@@ -3,7 +3,6 @@ package utils
 import (
 	"bytes"
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"regexp"
 	"strconv"
@@ -29,8 +28,8 @@ func RandomString(length int) string {
 	return string(result)
 }
 
-// SnakeCase converts a string to snake_case
-func SnakeCase(s string) string {
+// StringToSnakeCase converts a string to snake_case
+func StringToSnakeCase(s string) string {
 	var result bytes.Buffer
 
 	for i, r := range s {
@@ -47,8 +46,8 @@ func SnakeCase(s string) string {
 	return result.String()
 }
 
-// CamelCase converts a string to camelCase
-func CamelCase(s string) string {
+// StringToCamelCase converts a string to camelCase
+func StringToCamelCase(s string) string {
 	words := strings.Fields(strings.ReplaceAll(s, "_", " "))
 	for i := range words {
 		if i == 0 {
@@ -79,7 +78,7 @@ func TitleCase(s string) string {
 
 // KebabCase converts a string to kebab-case
 func KebabCase(s string) string {
-	return strings.ReplaceAll(SnakeCase(s), "_", "-")
+	return strings.ReplaceAll(StringToSnakeCase(s), "_", "-")
 }
 
 // ReverseString reverses a string
@@ -96,8 +95,8 @@ func CountWords(s string) int {
 	return len(strings.Fields(s))
 }
 
-// Truncate truncates a string to specified length with ellipsis
-func Truncate(s string, length int) string {
+// TruncateString truncates a string to specified length with ellipsis
+func TruncateString(s string, length int) string {
 	if len(s) <= length {
 		return s
 	}
@@ -145,8 +144,8 @@ func ExtractURLs(s string) []string {
 	return re.FindAllString(s, -1)
 }
 
-// ContainsAny checks if a string contains any of the given substrings
-func ContainsAny(s string, substrings []string) bool {
+// StringContainsAny checks if a string contains any of the given substrings
+func StringContainsAny(s string, substrings []string) bool {
 	for _, substr := range substrings {
 		if strings.Contains(s, substr) {
 			return true
@@ -155,8 +154,8 @@ func ContainsAny(s string, substrings []string) bool {
 	return false
 }
 
-// ContainsAll checks if a string contains all of the given substrings
-func ContainsAll(s string, substrings []string) bool {
+// StringContainsAll checks if a string contains all of the given substrings
+func StringContainsAll(s string, substrings []string) bool {
 	for _, substr := range substrings {
 		if !strings.Contains(s, substr) {
 			return false
@@ -280,9 +279,9 @@ func SplitByLength(s string, chunkSize int) []string {
 }
 
 // JoinStrings joins strings with a separator, ignoring empty strings
-func JoinStrings(separator string, strings ...string) string {
+func JoinStrings(separator string, strs ...string) string {
 	var nonEmpty []string
-	for _, s := range strings {
+	for _, s := range strs {
 		if s != "" {
 			nonEmpty = append(nonEmpty, s)
 		}
@@ -345,7 +344,7 @@ func LevenshteinDistance(s1, s2 string) int {
 			if r1[i-1] == r2[j-1] {
 				cost = 0
 			}
-			distance[i][j] = min(
+			distance[i][j] = min3(
 				distance[i-1][j]+1,
 				distance[i][j-1]+1,
 				distance[i-1][j-1]+cost,
@@ -424,12 +423,17 @@ func JaroWinklerSimilarity(s1, s2 string) float64 {
 	return jaro + float64(prefix)*0.1*(1-jaro)
 }
 
-// min helper function
+// min helper function for two arguments
 func min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
+}
+
+// min3 helper function for three arguments
+func min3(a, b, c int) int {
+	return min(min(a, b), c)
 }
 
 // max helper function

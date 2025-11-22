@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"moviepilot-go/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // 模块状态常量
@@ -52,7 +52,7 @@ type Module interface {
 	GetInfo() *ModuleInfo
 
 	// Initialize 初始化模块
-	Initialize(config map[string]interface{}, logger logger.Logger) error
+	Initialize(config map[string]interface{}, logger *zap.Logger) error
 
 	// Start 启动模块
 	Start() error
@@ -76,13 +76,13 @@ type Module interface {
 	GetDependencyIDs() []string
 
 	// GetLogger 获取模块日志器
-	GetLogger() logger.Logger
+	GetLogger() *zap.Logger
 }
 
 // ModuleBase 模块基础实现，提供通用功能
 type ModuleBase struct {
 	info        *ModuleInfo
-	logger      logger.Logger
+	logger      *zap.Logger
 	mutex       sync.RWMutex
 	initialized bool
 }
@@ -116,7 +116,7 @@ func (m *ModuleBase) GetInfo() *ModuleInfo {
 }
 
 // Initialize 初始化模块
-func (m *ModuleBase) Initialize(config map[string]interface{}, logger logger.Logger) error {
+func (m *ModuleBase) Initialize(config map[string]interface{}, logger *zap.Logger) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -135,7 +135,7 @@ func (m *ModuleBase) Initialize(config map[string]interface{}, logger logger.Log
 	}
 
 	m.initialized = true
-	m.logger.Debug("Module initialized", "module", m.info.ID)
+	m.logger.Debug("Module initialized", zap.String("module", m.info.ID))
 	return nil
 }
 
@@ -161,7 +161,7 @@ func (m *ModuleBase) SetStatus(status string) {
 		} else if status == StatusStopped {
 			m.info.StopTime = time.Now()
 		}
-		m.logger.Debug("Module status changed", "module", m.info.ID, "from", oldStatus, "to", status)
+		m.logger.Debug("Module status changed", zap.String("module", m.info.ID), zap.String("from", oldStatus), zap.String("to", status))
 	}
 }
 
@@ -200,7 +200,7 @@ func (m *ModuleBase) UpdateConfig(config map[string]interface{}) error {
 	}
 
 	if m.logger != nil {
-		m.logger.Debug("Module config updated", "module", m.info.ID)
+		m.logger.Debug("Module config updated", zap.String("module", m.info.ID))
 	}
 	return nil
 }
@@ -217,7 +217,7 @@ func (m *ModuleBase) GetDependencyIDs() []string {
 }
 
 // GetLogger 获取模块日志器
-func (m *ModuleBase) GetLogger() logger.Logger {
+func (m *ModuleBase) GetLogger() *zap.Logger {
 	return m.logger
 }
 
@@ -230,7 +230,7 @@ func (m *ModuleBase) SetError(err error) {
 		m.info.Error = err.Error()
 		m.info.Status = StatusError
 		if m.logger != nil {
-			m.logger.Error("Module error", "module", m.info.ID, "error", err.Error())
+			m.logger.Error("Module error", zap.String("module", m.info.ID), zap.String("error", err.Error()))
 		}
 	} else {
 		m.info.Error = ""
@@ -296,7 +296,7 @@ func (m *ModuleBase) Stop() error {
 	m.SetStatus(StatusStopping)
 	defer func() {
 		if r := recover(); r != nil {
-			m.logger.Error("Panic during module stop", "module", m.info.ID, "error", r)
+			m.logger.Error("Panic during module stop", zap.String("module", m.info.ID), zap.Any("error", r))
 		}
 		m.SetStatus(StatusStopped)
 	}()

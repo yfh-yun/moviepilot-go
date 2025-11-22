@@ -3,11 +3,9 @@ package utils
 import (
 	"crypto/hmac"
 	"crypto/sha1"
-	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -21,7 +19,7 @@ type TwoFactorAuth struct {
 // NewTwoFactorAuth 创建双因素认证实例
 func NewTwoFactorAuth(codeOrSecret string) *TwoFactorAuth {
 	tfa := &TwoFactorAuth{}
-	
+
 	if len(codeOrSecret) >= 16 {
 		tfa.secret = strings.ToUpper(strings.TrimSpace(codeOrSecret))
 		tfa.code = ""
@@ -29,7 +27,7 @@ func NewTwoFactorAuth(codeOrSecret string) *TwoFactorAuth {
 		tfa.code = strings.TrimSpace(codeOrSecret)
 		tfa.secret = ""
 	}
-	
+
 	return tfa
 }
 
@@ -38,11 +36,11 @@ func (tfa *TwoFactorAuth) GetCode() string {
 	if tfa.code != "" {
 		return tfa.code
 	}
-	
+
 	if tfa.secret == "" {
 		return ""
 	}
-	
+
 	return tfa.calculateCode(tfa.secret)
 }
 
@@ -172,74 +170,74 @@ func ValidateSecret(secret string) bool {
 func base32Decode(input string) ([]byte, error) {
 	// 移除空格并转为大写
 	input = strings.ToUpper(strings.ReplaceAll(input, " ", ""))
-	
+
 	// 标准Base32字符集
 	alphabet := "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-	
+
 	// 创建解码映射
 	decodeMap := make(map[byte]int)
 	for i, char := range alphabet {
 		decodeMap[byte(char)] = i
 	}
-	
+
 	// 移除填充字符
 	input = strings.TrimRight(input, "=")
-	
+
 	// 计算输出长度
 	outputLen := len(input) * 5 / 8
 	output := make([]byte, outputLen)
-	
+
 	buffer := 0
 	bitsLeft := 0
 	index := 0
-	
+
 	for _, char := range input {
 		if char == '=' {
 			continue
 		}
-		
+
 		val, exists := decodeMap[byte(char)]
 		if !exists {
 			return nil, fmt.Errorf("invalid base32 character: %c", char)
 		}
-		
+
 		buffer = (buffer << 5) | val
 		bitsLeft += 5
-		
+
 		if bitsLeft >= 8 {
 			output[index] = byte(buffer >> uint(bitsLeft-8))
 			index++
 			bitsLeft -= 8
 		}
 	}
-	
+
 	return output, nil
 }
 
 // base32Encode Base32编码
 func base32Encode(input []byte) string {
 	alphabet := "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-	
+
 	var result strings.Builder
 	buffer := 0
 	bitsLeft := 0
-	
+
 	for _, b := range input {
 		buffer = (buffer << 8) | int(b)
 		bitsLeft += 8
-		
+
 		for bitsLeft >= 5 {
 			index := (buffer >> uint(bitsLeft-5)) & 0x1f
 			result.WriteByte(alphabet[index])
 			bitsLeft -= 5
 		}
 	}
-	
+
 	if bitsLeft > 0 {
 		index := (buffer << uint(5-bitsLeft)) & 0x1f
 		result.WriteByte(alphabet[index])
 	}
-	
+
 	// 添加填充字符
 	padding := (8 - (len(input) % 8)) % 8
 	if padding > 0 {
@@ -247,7 +245,7 @@ func base32Encode(input []byte) string {
 			result.WriteByte('=')
 		}
 	}
-	
+
 	return result.String()
 }
 
@@ -261,7 +259,7 @@ func (tfa *TwoFactorAuth) GetQRCodeURL(accountName, issuer string) string {
 	accountName = strings.ReplaceAll(accountName, " ", "%20")
 	issuer = strings.ReplaceAll(issuer, " ", "%20")
 
-	return fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s", 
+	return fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s",
 		issuer, accountName, tfa.secret, issuer)
 }
 
@@ -272,7 +270,7 @@ func TimeSyncTest(secret string) (bool, error) {
 	}
 
 	tfa := NewTwoFactorAuth(secret)
-	
+
 	// 生成当前时间的验证码
 	currentCode := tfa.GetCode()
 	if currentCode == "" {

@@ -1,13 +1,24 @@
 package workflow
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
-	"moviepilot-go/pkg/logger"
+	"go.uber.org/zap"
 )
+
+// RetryStrategy 重试策略接口
+type RetryStrategy interface {
+	// ShouldRetry 判断是否应该重试
+	ShouldRetry(attempt int, err error) bool
+
+	// GetDelay 获取重试延迟
+	GetDelay(attempt int) time.Duration
+
+	// MaxAttempts 获取最大重试次数
+	MaxAttempts() int
+}
 
 // BasicTask 基础任务实现
 type BasicTask struct {
@@ -16,9 +27,10 @@ type BasicTask struct {
 	description   string
 	taskFunc      TaskFunc
 	status        TaskStatus
+	priority      int
 	dependencies  []string
 	retryStrategy RetryStrategy
-	logger        logger.Logger
+	logger        *zap.Logger
 	metadata      map[string]interface{}
 }
 
@@ -26,7 +38,7 @@ type BasicTask struct {
 type TaskFunc func(ctx *WorkflowContext) (*TaskResult, error)
 
 // NewBasicTask 创建基础任务
-func NewBasicTask(id, name string, taskFunc TaskFunc, logger logger.Logger) *BasicTask {
+func NewBasicTask(id, name string, taskFunc TaskFunc, logger *zap.Logger) *BasicTask {
 	return &BasicTask{
 		id:           id,
 		name:         name,
@@ -61,6 +73,16 @@ func (t *BasicTask) Status() TaskStatus {
 // SetStatus 设置任务状态
 func (t *BasicTask) SetStatus(status TaskStatus) {
 	t.status = status
+}
+
+// Priority 获取任务优先级（数值越小优先级越高）。
+func (t *BasicTask) Priority() int {
+	return t.priority
+}
+
+// SetPriority 设置任务优先级。
+func (t *BasicTask) SetPriority(priority int) {
+	t.priority = priority
 }
 
 // Dependencies 获取任务依赖
@@ -123,17 +145,17 @@ func (t *BasicTask) Run(ctx *WorkflowContext) (*TaskResult, error) {
 // ConditionTask 条件任务
 type ConditionTask struct {
 	BasicTask
-	condition     ConditionFunc
-	thenTask      Task
-	elseTask      Task
-	conditionMet  bool
+	condition    ConditionFunc
+	thenTask     Task
+	elseTask     Task
+	conditionMet bool
 }
 
 // ConditionFunc 条件函数类型
 type ConditionFunc func(ctx *WorkflowContext) bool
 
 // NewConditionTask 创建条件任务
-func NewConditionTask(id, name string, condition ConditionFunc, logger logger.Logger) *ConditionTask {
+func NewConditionTask(id, name string, condition ConditionFunc, logger *zap.Logger) *ConditionTask {
 	task := &ConditionTask{
 		BasicTask: *NewBasicTask(id, name, nil, logger),
 		condition: condition,
@@ -161,21 +183,21 @@ func (t *ConditionTask) SetElseTask(task Task) {
 func (t *ConditionTask) conditionRun(ctx *WorkflowContext) (*TaskResult, error) {
 	// 计算条件
 	t.conditionMet = t.condition(ctx)
-	t.logger.Info("Condition evaluated", "task_id", t.id, "condition_met", t.conditionMet)
+	t.logger.Info("Condition evaluated", zap.String("task_id", t.id), zap.Bool("condition_met", t.conditionMet))
 
 	// 根据条件执行对应的任务
 	var result *TaskResult
 	var err error
 
 	if t.conditionMet && t.thenTask != nil {
-		t.logger.Info("Executing then branch", "task_id", t.id)
+		t.logger.Info("Executing then branch for task " + t.id)
 		result, err = t.thenTask.Run(ctx)
 	} else if !t.conditionMet && t.elseTask != nil {
-		t.logger.Info("Executing else branch", "task_id", t.id)
+		t.logger.Info("Executing else branch for task " + t.id)
 		result, err = t.elseTask.Run(ctx)
 	} else {
 		// 如果条件为真但没有thenTask，或者条件为假但没有elseTask
-		t.logger.Info("No branch to execute", "task_id", t.id)
+		t.logger.Info("No branch to execute for task " + t.id)
 		result = &TaskResult{
 			Status: TaskCompleted,
 			Output: map[string]interface{}{"condition_met": t.conditionMet},
@@ -208,7 +230,7 @@ type LoopTask struct {
 type LoopFunc func(ctx *WorkflowContext, iteration int) bool
 
 // NewLoopTask 创建循环任务
-func NewLoopTask(id, name string, loopFunc LoopFunc, maxIterations int, logger logger.Logger) *LoopTask {
+func NewLoopTask(id, name string, loopFunc LoopFunc, maxIterations int, logger *zap.Logger) *LoopTask {
 	task := &LoopTask{
 		BasicTask:     *NewBasicTask(id, name, nil, logger),
 		loopFunc:      loopFunc,
@@ -240,7 +262,7 @@ func (t *LoopTask) loopRun(ctx *WorkflowContext) (*TaskResult, error) {
 	for {
 		// 检查循环条件
 		if !t.loopFunc(ctx, t.currentIter) || t.currentIter >= t.maxIterations {
-			t.logger.Info("Loop condition exited", "task_id", t.id, "iterations", t.currentIter)
+			t.logger.Info(fmt.Sprintf("Loop condition exited for task %s, iterations: %d", t.id, t.currentIter))
 			break
 		}
 
@@ -259,32 +281,33 @@ func (t *LoopTask) loopRun(ctx *WorkflowContext) (*TaskResult, error) {
 
 		// 如果任务失败，停止循环
 		if result.Status != TaskCompleted {
-			t.logger.Warn("Loop task iteration failed", "task_id", t.id, "iteration", t.currentIter)
+			t.logger.Warn(fmt.Sprintf("Loop task iteration failed for task %s, iteration: %d", t.id, t.currentIter))
 			break
 		}
 	}
 
 	// 构建最终结果
+	output := map[string]interface{}{"iterations": t.currentIter, "results": results}
+	output["loop_results"] = results
 	return &TaskResult{
-		Status:   TaskCompleted,
-		Output:   map[string]interface{}{"iterations": t.currentIter, "results": results},
-		Metadata: map[string]interface{}{"loop_results": results},
+		Status: TaskCompleted,
+		Output: output,
 	}, nil
 }
 
 // ParallelTask 并行任务
 type ParallelTask struct {
 	BasicTask
-	subTasks      []Task
-	concurrent    int
-	waitForAll    bool
+	subTasks   []Task
+	concurrent int
+	waitForAll bool
 }
 
 // NewParallelTask 创建并行任务
-func NewParallelTask(id, name string, concurrent int, waitForAll bool, logger logger.Logger) *ParallelTask {
+func NewParallelTask(id, name string, concurrent int, waitForAll bool, logger *zap.Logger) *ParallelTask {
 	task := &ParallelTask{
-		BasicTask: *NewBasicTask(id, name, nil, logger),
-		subTasks:  make([]Task, 0),
+		BasicTask:  *NewBasicTask(id, name, nil, logger),
+		subTasks:   make([]Task, 0),
 		concurrent: concurrent,
 		waitForAll: waitForAll,
 	}
@@ -308,7 +331,7 @@ func (t *ParallelTask) AddTask(task Task) {
 func (t *ParallelTask) parallelRun(ctx *WorkflowContext) (*TaskResult, error) {
 	if len(t.subTasks) == 0 {
 		return &TaskResult{Status: TaskCompleted, Output: map[string]interface{}{"tasks_count": 0}},
-		nil
+			nil
 	}
 
 	// 创建通道来控制并发
@@ -351,21 +374,16 @@ func (t *ParallelTask) parallelRun(ctx *WorkflowContext) (*TaskResult, error) {
 	successfulCount := 0
 
 	for i := 0; i < len(t.subTasks); i++ {
-		select {
-		case result := <-resultChan:
-			if result.err != nil {
-				if firstErr == nil {
-					firstErr = result.err
-				}
-				t.logger.Error("Parallel task execution failed", 
-					"parent_id", t.id, 
-					"task_id", result.task.ID(), 
-					"error", result.err.Error())
-			} else if result.result != nil {
-				results[result.task.ID()] = result.result
-				if result.result.Status == TaskCompleted {
-					successfulCount++
-				}
+		result := <-resultChan
+		if result.err != nil {
+			if firstErr == nil {
+				firstErr = result.err
+			}
+			t.logger.Error(fmt.Sprintf("Parallel task execution failed, parent: %s, task: %s, error: %s", t.id, result.task.ID(), result.err.Error()))
+		} else if result.result != nil {
+			results[result.task.ID()] = result.result
+			if result.result.Status == TaskCompleted {
+				successfulCount++
 			}
 		}
 	}
@@ -380,9 +398,9 @@ func (t *ParallelTask) parallelRun(ctx *WorkflowContext) (*TaskResult, error) {
 	return &TaskResult{
 		Status: TaskCompleted,
 		Output: map[string]interface{}{
-			"tasks_count":       len(t.subTasks),
-			"successful_count":  successfulCount,
-			"all_successful":    totalSuccess,
+			"tasks_count":        len(t.subTasks),
+			"successful_count":   successfulCount,
+			"all_successful":     totalSuccess,
 			"individual_results": results,
 		},
 	}, nil
@@ -395,7 +413,7 @@ type DelayTask struct {
 }
 
 // NewDelayTask 创建延迟任务
-func NewDelayTask(id, name string, delay time.Duration, logger logger.Logger) *DelayTask {
+func NewDelayTask(id, name string, delay time.Duration, logger *zap.Logger) *DelayTask {
 	task := &DelayTask{
 		BasicTask:     *NewBasicTask(id, name, nil, logger),
 		delayDuration: delay,
@@ -409,7 +427,7 @@ func NewDelayTask(id, name string, delay time.Duration, logger logger.Logger) *D
 
 // delayRun 执行延迟任务
 func (t *DelayTask) delayRun(ctx *WorkflowContext) (*TaskResult, error) {
-	t.logger.Info("Executing delay task", "task_id", t.id, "delay", t.delayDuration)
+	t.logger.Info(fmt.Sprintf("Executing delay task %s, delay: %v", t.id, t.delayDuration))
 
 	// 创建一个定时器
 	timer := time.NewTimer(t.delayDuration)
@@ -419,17 +437,17 @@ func (t *DelayTask) delayRun(ctx *WorkflowContext) (*TaskResult, error) {
 	select {
 	case <-timer.C:
 		// 延迟完成
-		t.logger.Info("Delay completed", "task_id", t.id)
+		t.logger.Info("Delay completed for task " + t.id)
 		return &TaskResult{
 			Status: TaskCompleted,
 			Output: map[string]interface{}{"delay_completed": true},
 		}, nil
-	case <-ctx.Context().Done():
+	case <-ctx.Context.Done():
 		// 上下文取消
 		return &TaskResult{
 			Status: TaskFailed,
-			Error:  ctx.Context().Err().Error(),
-		}, ctx.Context().Err()
+			Error:  ctx.Context.Err().Error(),
+		}, ctx.Context.Err()
 	}
 }
 
@@ -445,7 +463,7 @@ type TransformTask struct {
 type TransformFunc func(value interface{}) (interface{}, error)
 
 // NewTransformTask 创建转换任务
-func NewTransformTask(id, name, sourceKey, targetKey string, transformFunc TransformFunc, logger logger.Logger) *TransformTask {
+func NewTransformTask(id, name, sourceKey, targetKey string, transformFunc TransformFunc, logger *zap.Logger) *TransformTask {
 	task := &TransformTask{
 		BasicTask:     *NewBasicTask(id, name, nil, logger),
 		transformFunc: transformFunc,
@@ -464,7 +482,7 @@ func (t *TransformTask) transformRun(ctx *WorkflowContext) (*TaskResult, error) 
 	// 获取源数据
 	sourceValue, exists := ctx.Variables[t.sourceKey]
 	if !exists {
-		t.logger.Warn("Source key not found", "task_id", t.id, "source_key", t.sourceKey)
+		t.logger.Warn("Source key not found", zap.String("task_id", t.id), zap.String("source_key", t.sourceKey))
 		return &TaskResult{
 			Status: TaskSkipped,
 			Output: map[string]interface{}{"skipped": true, "reason": "source_key_not_found"},
@@ -480,16 +498,16 @@ func (t *TransformTask) transformRun(ctx *WorkflowContext) (*TaskResult, error) 
 	// 存储转换后的数据
 	ctx.Variables[t.targetKey] = transformedValue
 
-	t.logger.Info("Data transformation completed", 
-		"task_id", t.id, 
-		"source_key", t.sourceKey, 
-		"target_key", t.targetKey)
+	t.logger.Info("Data transformation completed",
+		zap.String("task_id", t.id),
+		zap.String("source_key", t.sourceKey),
+		zap.String("target_key", t.targetKey))
 
 	return &TaskResult{
 		Status: TaskCompleted,
 		Output: map[string]interface{}{
-			"source_key":      t.sourceKey,
-			"target_key":      t.targetKey,
+			"source_key":        t.sourceKey,
+			"target_key":        t.targetKey,
 			"transformed_value": transformedValue,
 		},
 	}, nil
@@ -499,18 +517,18 @@ func (t *TransformTask) transformRun(ctx *WorkflowContext) (*TaskResult, error) 
 type ErrorHandlingTask struct {
 	BasicTask
 	taskToMonitor Task
-	errorHandler ErrorHandlerFunc
+	errorHandler  ErrorHandlerFunc
 }
 
 // ErrorHandlerFunc 错误处理函数类型
 type ErrorHandlerFunc func(ctx *WorkflowContext, err error) *TaskResult
 
 // NewErrorHandlingTask 创建错误处理任务
-func NewErrorHandlingTask(id, name string, taskToMonitor Task, errorHandler ErrorHandlerFunc, logger logger.Logger) *ErrorHandlingTask {
+func NewErrorHandlingTask(id, name string, taskToMonitor Task, errorHandler ErrorHandlerFunc, logger *zap.Logger) *ErrorHandlingTask {
 	task := &ErrorHandlingTask{
 		BasicTask:     *NewBasicTask(id, name, nil, logger),
 		taskToMonitor: taskToMonitor,
-		errorHandler: errorHandler,
+		errorHandler:  errorHandler,
 	}
 
 	// 覆盖Run方法
@@ -529,20 +547,25 @@ func (t *ErrorHandlingTask) errorHandlingRun(ctx *WorkflowContext) (*TaskResult,
 
 	if err != nil {
 		// 错误发生，执行错误处理
-		t.logger.Error("Task execution failed, handling error", 
-			"task_id", t.id, 
-			"monitored_task", t.taskToMonitor.ID(), 
-			"error", err.Error())
+		t.logger.Error("Task execution failed, handling error",
+			zap.String("task_id", t.id),
+			zap.String("monitored_task", t.taskToMonitor.ID()),
+			zap.String("error", err.Error()))
 
 		// 执行错误处理函数
 		handledResult := t.errorHandler(ctx, err)
 
 		// 如果错误处理成功，返回成功结果
 		if handledResult.Status == TaskCompleted {
+			output := handledResult.Output
+			if output == nil {
+				output = make(map[string]interface{})
+			}
+			output["error_handled"] = true
+			output["original_error"] = err.Error()
 			return &TaskResult{
-				Status:    TaskCompleted,
-				Output:    handledResult.Output,
-				Metadata:  map[string]interface{}{"error_handled": true, "original_error": err.Error()},
+				Status: TaskCompleted,
+				Output: output,
 			}, nil
 		}
 
@@ -557,9 +580,9 @@ func (t *ErrorHandlingTask) errorHandlingRun(ctx *WorkflowContext) (*TaskResult,
 // LogTask 日志任务，用于记录日志
 type LogTask struct {
 	BasicTask
-	logLevel      LogLevel
-	logMessage    string
-	logVariables  map[string]interface{}
+	logLevel     LogLevel
+	logMessage   string
+	logVariables map[string]interface{}
 }
 
 // LogLevel 日志级别
@@ -573,7 +596,7 @@ const (
 )
 
 // NewLogTask 创建日志任务
-func NewLogTask(id, name, message string, level LogLevel, logger logger.Logger) *LogTask {
+func NewLogTask(id, name, message string, level LogLevel, logger *zap.Logger) *LogTask {
 	task := &LogTask{
 		BasicTask:    *NewBasicTask(id, name, nil, logger),
 		logLevel:     level,
@@ -615,18 +638,24 @@ func (t *LogTask) logRun(ctx *WorkflowContext) (*TaskResult, error) {
 		}
 	}
 
+	// 将map转换为zap fields
+	zapFields := make([]zap.Field, 0, len(logFields))
+	for key, value := range logFields {
+		zapFields = append(zapFields, zap.Any(key, value))
+	}
+
 	// 根据日志级别记录日志
 	switch t.logLevel {
 	case LogLevelDebug:
-		t.logger.Debug(message, logFields)
+		t.logger.Debug(message, zapFields...)
 	case LogLevelInfo:
-		t.logger.Info(message, logFields)
+		t.logger.Info(message, zapFields...)
 	case LogLevelWarn:
-		t.logger.Warn(message, logFields)
+		t.logger.Warn(message, zapFields...)
 	case LogLevelError:
-		t.logger.Error(message, logFields)
+		t.logger.Error(message, zapFields...)
 	default:
-		t.logger.Info(message, logFields)
+		t.logger.Info(message, zapFields...)
 	}
 
 	return &TaskResult{

@@ -57,6 +57,7 @@ configs/*.crt
 data/
 downloads/
 media/
+!internal/business/media/
 cache/
 temp/
 

@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"unicode"
@@ -10,7 +11,11 @@ import (
 
 // IsValidPhone checks if a string is a valid phone number
 func IsValidPhone(phone string) bool {
-	// Remove all non-digit characters
+	if phone == "" {
+		return false
+	}
+
+	// Remove all non-digit characters for length validation
 	digits := ""
 	for _, r := range phone {
 		if unicode.IsDigit(r) {
@@ -18,35 +23,39 @@ func IsValidPhone(phone string) bool {
 		}
 	}
 
-	// Check phone number length
+	// Check phone number length (10-15 digits is standard)
 	if len(digits) < 10 || len(digits) > 15 {
 		return false
 	}
 
-	// Basic phone number validation
-	phoneRegex := regexp.MustCompile(`^\+?[\d\s\-\(\)]+$`)
+	// Enhanced phone number validation with better regex
+	phoneRegex := regexp.MustCompile(`^\+?[1-9][\d\s\-\(\)]{8,14}[0-9]$`)
 	return phoneRegex.MatchString(phone)
 }
 
-// IsValidURL checks if a string is a valid URL
-func IsValidURL(url string) bool {
-	if len(url) < 3 || len(url) > 2083 {
+// IsValidURLFormat checks if a string has valid URL format with additional validation
+func IsValidURLFormat(urlStr string) bool {
+	if urlStr == "" {
 		return false
 	}
 
+	// Check reasonable URL length (3-2083 characters as per RFC 2616)
+	if len(urlStr) < 3 || len(urlStr) > 2083 {
+		return false
+	}
+
+	// Use Go's standard library URL parser for better validation
+	_, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+
+	// Additional regex validation for common URL patterns
 	urlRegex := regexp.MustCompile(`^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$`)
-	return urlRegex.MatchString(url)
+	return urlRegex.MatchString(urlStr)
 }
 
-// IsValidIP checks if a string is a valid IP address
-func IsValidIP(ip string) bool {
-	ipv4Regex := regexp.MustCompile(`^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`)
 
-	// Simple IPv6 check (basic pattern)
-	ipv6Regex := regexp.MustCompile(`^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$`)
-
-	return ipv4Regex.MatchString(ip) || ipv6Regex.MatchString(ip)
-}
 
 // IsValidDomain checks if a string is a valid domain name
 func IsValidDomain(domain string) bool {
@@ -68,8 +77,12 @@ func IsValidUsername(username string) bool {
 	return usernameRegex.MatchString(username)
 }
 
-// IsValidPassword checks if a string is a valid password
+// IsValidPassword checks if a string is a valid password with configurable minimum length
 func IsValidPassword(password string, minLength int) bool {
+	if password == "" || minLength < 1 {
+		return false
+	}
+
 	if len(password) < minLength {
 		return false
 	}
@@ -93,6 +106,11 @@ func IsValidPassword(password string, minLength int) bool {
 	}
 
 	return hasUpper && hasLower && hasDigit && hasSpecial
+}
+
+// IsStrongPassword checks if a password is strong enough (minimum 8 characters)
+func IsStrongPassword(password string) bool {
+	return IsValidPassword(password, 8)
 }
 
 // IsValidUUID checks if a string is a valid UUID

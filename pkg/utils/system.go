@@ -1,13 +1,17 @@
 package utils
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -606,4 +610,19 @@ func (sh *SystemHelper) RemoveSystemFlag() error {
 	}
 
 	return os.Remove(sh.systemFlagFile)
+}
+
+// IsFrozenEnvironment 检查是否在冻结环境中运行
+func IsFrozenEnvironment() bool {
+	// 检查冻结标志文件
+	if _, err := os.Stat("/tmp/moviepilot_frozen"); err == nil {
+		return true
+	}
+
+	// 检查环境变量
+	if os.Getenv("MOVIEPILOT_FROZEN") == "true" {
+		return true
+	}
+
+	return false
 }

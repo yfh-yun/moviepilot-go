@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"moviepilot-go/pkg/logger"
 )
 
 // ResponseCode 响应状态码
@@ -53,7 +54,7 @@ const (
 	// CodeUserExists 用户已存在
 	CodeUserExists ResponseCode = 2004
 
-	// CodeInvalidPassword 密码无效
+	// CodeInvalidPassword 密码错误
 	CodeInvalidPassword ResponseCode = 2005
 )
 
@@ -136,15 +137,24 @@ func SuccessWithPagination(c *gin.Context, items interface{}, totalCount int64, 
 func ErrorWithLog(c *gin.Context, code ResponseCode, message string, err error) {
 	// 记录错误日志
 	if err != nil {
-		zap.L().Error("API Error",
+		logger.Error("API Error",
 			zap.Int("code", int(code)),
 			zap.String("message", message),
 			zap.String("error", err.Error()),
 			zap.String("path", c.Request.URL.Path),
+			zap.String("func", "ErrorWithLog"),
 		)
 	}
 
 	Error(c, code, message)
+}
+
+// BadRequest 400错误响应
+func BadRequest(c *gin.Context, message string) {
+	if message == "" {
+		message = "请求参数错误"
+	}
+	Error(c, CodeInvalidParams, message)
 }
 
 // InvalidParams 参数错误响应

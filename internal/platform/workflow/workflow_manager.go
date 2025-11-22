@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"moviepilot-go/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // WorkflowManagerImpl 工作流管理器实现
@@ -17,13 +17,13 @@ type WorkflowManagerImpl struct {
 	workflowMutex  sync.RWMutex
 	executorMutex  sync.RWMutex
 	observerMutex  sync.RWMutex
-	logger         logger.Logger
+	logger         *zap.Logger
 	wg             sync.WaitGroup
 	shutdownCh     chan struct{}
 }
 
 // NewWorkflowManager 创建工作流管理器实例
-func NewWorkflowManager(logger logger.Logger) *WorkflowManagerImpl {
+func NewWorkflowManager(logger *zap.Logger) *WorkflowManagerImpl {
 	return &WorkflowManagerImpl{
 		workflows:    make(map[string]*Workflow),
 		executors:    make(map[string]WorkflowExecutor),
@@ -71,7 +71,7 @@ func (wm *WorkflowManagerImpl) Stop() error {
 
 	for _, id := range workflowIDs {
 		if err := wm.StopWorkflow(id); err != nil {
-			wm.logger.Error("Failed to stop workflow", "workflow_id", id, "error", err.Error())
+			wm.logger.Error("Failed to stop workflow", zap.String("workflow_id", id), zap.String("error", err.Error()))
 		}
 	}
 
@@ -100,7 +100,7 @@ func (wm *WorkflowManagerImpl) RegisterWorkflow(workflow *Workflow) error {
 	}
 
 	wm.workflows[workflow.ID] = workflow
-	wm.logger.Info("Workflow registered successfully", "workflow_id", workflow.ID, "workflow_name", workflow.Name)
+	wm.logger.Info("Workflow registered successfully", zap.String("workflow_id", workflow.ID), zap.String("workflow_name", workflow.Name))
 
 	return nil
 }
@@ -129,7 +129,7 @@ func (wm *WorkflowManagerImpl) UnregisterWorkflow(id string) error {
 		delete(wm.executors, id)
 	}
 
-	wm.logger.Info("Workflow unregistered successfully", "workflow_id", id)
+	wm.logger.Info("Workflow unregistered successfully", zap.String("workflow_id", id))
 	return nil
 }
 
@@ -212,7 +212,7 @@ func (wm *WorkflowManagerImpl) RunWorkflow(id string, ctx context.Context, varia
 			workflow.UpdatedAt = time.Now()
 			workflow.mutex.Unlock()
 
-			wm.logger.Error("Workflow execution failed", "workflow_id", id, "error", err.Error())
+			wm.logger.Error("Workflow execution failed", zap.String("workflow_id", id), zap.String("error", err.Error()))
 
 			// 通知观察者工作流失败
 			wm.notifyObservers(func(observer WorkflowObserver) {
@@ -252,7 +252,8 @@ func (wm *WorkflowManagerImpl) StopWorkflow(id string) error {
 	executor, exists := func() (WorkflowExecutor, bool) {
 		wm.executorMutex.RLock()
 		defer wm.executorMutex.RUnlock()
-		return wm.executors[id]
+		exec, ex := wm.executors[id]
+		return exec, ex
 	}()
 
 	if !exists {
@@ -270,7 +271,7 @@ func (wm *WorkflowManagerImpl) StopWorkflow(id string) error {
 	workflow.UpdatedAt = time.Now()
 	workflow.mutex.Unlock()
 
-	wm.logger.Info("Workflow stopped", "workflow_id", id)
+	wm.logger.Info("Workflow stopped", zap.String("workflow_id", id))
 
 	// 通知观察者工作流取消
 	wm.notifyObservers(func(observer WorkflowObserver) {
@@ -299,7 +300,7 @@ func (wm *WorkflowManagerImpl) PauseWorkflow(id string) error {
 	workflow.UpdatedAt = time.Now()
 	workflow.mutex.Unlock()
 
-	wm.logger.Info("Workflow paused", "workflow_id", id)
+	wm.logger.Info("Workflow paused", zap.String("workflow_id", id))
 
 	// 通知观察者工作流暂停
 	wm.notifyObservers(func(observer WorkflowObserver) {
@@ -328,7 +329,7 @@ func (wm *WorkflowManagerImpl) ResumeWorkflow(id string) error {
 	workflow.UpdatedAt = time.Now()
 	workflow.mutex.Unlock()
 
-	wm.logger.Info("Workflow resumed", "workflow_id", id)
+	wm.logger.Info("Workflow resumed", zap.String("workflow_id", id))
 
 	// 通知观察者工作流恢复
 	wm.notifyObservers(func(observer WorkflowObserver) {
@@ -447,16 +448,16 @@ func (wm *WorkflowManagerImpl) checkRunningWorkflows() {
 		// 检查工作流是否超时
 		if workflow.timeout > 0 {
 			if time.Since(workflow.CreatedAt) > workflow.timeout {
-				wm.logger.Warn("Workflow timeout detected", "workflow_id", workflow.ID)
+				wm.logger.Warn("Workflow timeout detected", zap.String("workflow_id", workflow.ID))
 				_ = wm.StopWorkflow(workflow.ID)
 			}
 		}
 
 		// 记录工作流运行状态
 		wm.logger.Debug("Monitoring workflow", 
-			"workflow_id", workflow.ID, 
-			"status", workflow.Status,
-			"running_time", time.Since(workflow.CreatedAt).String(),
+			zap.String("workflow_id", workflow.ID), 
+			zap.String("status", string(workflow.Status)),
+			zap.String("running_time", time.Since(workflow.CreatedAt).String()),
 		)
 	}
 }

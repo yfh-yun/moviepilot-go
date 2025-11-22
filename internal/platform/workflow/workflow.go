@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"moviepilot-go/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // WorkflowStatus 工作流状态枚举
@@ -58,26 +58,26 @@ var (
 
 // TaskResult 任务执行结果
 type TaskResult struct {
-	Status    TaskStatus         `json:"status"`    // 任务状态
-	Output    map[string]interface{} `json:"output"` // 任务输出
-	Error     string             `json:"error"`     // 错误信息
-	StartTime time.Time          `json:"start_time"` // 开始时间
-	EndTime   time.Time          `json:"end_time"`   // 结束时间
-	Duration  time.Duration      `json:"duration"`   // 执行时长
+	Status    TaskStatus             `json:"status"`     // 任务状态
+	Output    map[string]interface{} `json:"output"`     // 任务输出
+	Error     string                 `json:"error"`      // 错误信息
+	StartTime time.Time              `json:"start_time"` // 开始时间
+	EndTime   time.Time              `json:"end_time"`   // 结束时间
+	Duration  time.Duration          `json:"duration"`   // 执行时长
 }
 
 // WorkflowContext 工作流上下文，用于在任务之间传递数据
 
 type WorkflowContext struct {
-	Context   context.Context  // 基础上下文
+	Context   context.Context        // 基础上下文
 	Variables map[string]interface{} // 全局变量
 	Results   map[string]*TaskResult // 任务执行结果
-	Logger    logger.Logger    // 日志记录器
-	Workflow  *Workflow        // 工作流实例
+	Logger    *zap.Logger            // 日志记录器
+	Workflow  *Workflow              // 工作流实例
 }
 
 // NewWorkflowContext 创建新的工作流上下文
-func NewWorkflowContext(ctx context.Context, variables map[string]interface{}, logger logger.Logger, workflow *Workflow) *WorkflowContext {
+func NewWorkflowContext(ctx context.Context, variables map[string]interface{}, logger *zap.Logger, workflow *Workflow) *WorkflowContext {
 	if variables == nil {
 		variables = make(map[string]interface{})
 	}
@@ -123,23 +123,22 @@ type Task interface {
 
 // Workflow 工作流定义
 type Workflow struct {
-	ID          string            // 工作流ID
-	Name        string            // 工作流名称
-	Description string            // 工作流描述
-	Version     string            // 版本号
-	CreatedAt   time.Time         // 创建时间
-	UpdatedAt   time.Time         // 更新时间
-	Status      WorkflowStatus    // 状态
-	Tasks       map[string]Task   // 任务列表
+	ID          string                 // 工作流ID
+	Name        string                 // 工作流名称
+	Description string                 // 工作流描述
+	Version     string                 // 版本号
+	CreatedAt   time.Time              // 创建时间
+	UpdatedAt   time.Time              // 更新时间
+	Status      WorkflowStatus         // 状态
+	Tasks       map[string]Task        // 任务列表
 	Variables   map[string]interface{} // 全局变量
-	Metadata    map[string]string // 元数据
-	Result      *TaskResult       // 工作流执行结果
-	wg          sync.WaitGroup
+	Metadata    map[string]string      // 元数据
+	Result      *TaskResult            // 工作流执行结果
 	mutex       sync.RWMutex
 	doneCh      chan struct{}
 	timeout     time.Duration
-	parent      *Workflow        // 父工作流（用于子工作流）
-	children    []*Workflow      // 子工作流列表
+	parent      *Workflow   // 父工作流（用于子工作流）
+	children    []*Workflow // 子工作流列表
 }
 
 // NewWorkflow 创建新的工作流
@@ -345,109 +344,6 @@ type WorkflowObserver interface {
 type Conditional interface {
 	// Evaluate 评估条件
 	Evaluate(ctx *WorkflowContext) bool
-}
-
-// RetryStrategy 重试策略接口
-type RetryStrategy interface {
-	// ShouldRetry 判断是否应该重试
-	ShouldRetry(attempt int, err error) bool
-
-	// GetDelay 获取重试延迟
-	GetDelay(attempt int) time.Duration
-
-	// MaxAttempts 获取最大重试次数
-	MaxAttempts() int
-}
-
-// BasicTask 基础任务实现
-type BasicTask struct {
-	id          string
-	name        string
-	description string
-	dependencies []string
-	status      TaskStatus
-	priority    int
-	retryStrategy RetryStrategy
-}
-
-// NewBasicTask 创建基础任务
-func NewBasicTask(id, name, description string, dependencies []string, priority int) *BasicTask {
-	return &BasicTask{
-		id:           id,
-		name:         name,
-		description:  description,
-		dependencies: dependencies,
-		status:       TaskPending,
-		priority:     priority,
-	}
-}
-
-// ID 获取任务ID
-func (t *BasicTask) ID() string {
-	return t.id
-}
-
-// Name 获取任务名称
-func (t *BasicTask) Name() string {
-	return t.name
-}
-
-// Description 获取任务描述
-func (t *BasicTask) Description() string {
-	return t.description
-}
-
-// Dependencies 获取依赖的任务ID列表
-func (t *BasicTask) Dependencies() []string {
-	return t.dependencies
-}
-
-// Status 获取任务状态
-func (t *BasicTask) Status() TaskStatus {
-	return t.status
-}
-
-// SetStatus 设置任务状态
-func (t *BasicTask) SetStatus(status TaskStatus) {
-	t.status = status
-}
-
-// Priority 获取任务优先级
-func (t *BasicTask) Priority() int {
-	return t.priority
-}
-
-// SetRetryStrategy 设置重试策略
-func (t *BasicTask) SetRetryStrategy(strategy RetryStrategy) {
-	t.retryStrategy = strategy
-}
-
-// GetRetryStrategy 获取重试策略
-func (t *BasicTask) GetRetryStrategy() RetryStrategy {
-	return t.retryStrategy
-}
-
-// CanRun 检查任务是否可以执行
-func (t *BasicTask) CanRun(ctx *WorkflowContext) bool {
-	// 检查任务状态
-	if t.Status() != TaskPending {
-		return false
-	}
-
-	// 检查所有依赖任务是否已完成
-	for _, depID := range t.Dependencies() {
-		result, exists := ctx.Results[depID]
-		if !exists || result.Status != TaskCompleted {
-			return false
-		}
-	}
-
-	return true
-}
-
-// Run 执行任务（需要被子类实现）
-func (t *BasicTask) Run(ctx *WorkflowContext) (*TaskResult, error) {
-	return nil, fmt.Errorf("method Run not implemented for task %s", t.ID())
 }
 
 // ValidateWorkflow 验证工作流的正确性

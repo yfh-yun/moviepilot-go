@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"moviepilot-go/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // ModuleManager 模块管理器接口
@@ -79,14 +79,14 @@ type ModuleManager interface {
 // ModuleManagerImpl 模块管理器实现
 type ModuleManagerImpl struct {
 	modules     map[string]Module
-	logger      logger.Logger
+	logger      *zap.Logger
 	config      map[string]interface{}
 	initialized bool
 	mutex       sync.RWMutex
 }
 
 // NewModuleManager 创建模块管理器
-func NewModuleManager(logger logger.Logger) *ModuleManagerImpl {
+func NewModuleManager(logger *zap.Logger) *ModuleManagerImpl {
 	return &ModuleManagerImpl{
 		modules: make(map[string]Module),
 		logger:  logger,
@@ -113,7 +113,7 @@ func (mm *ModuleManagerImpl) RegisterModule(module Module) error {
 	}
 
 	mm.modules[moduleInfo.ID] = module
-	mm.logger.Info("Module registered", "module", moduleInfo.ID, "name", moduleInfo.Name)
+	mm.logger.Info("Module registered", zap.String("module", moduleInfo.ID), zap.String("name", moduleInfo.Name))
 	return nil
 }
 
@@ -130,12 +130,12 @@ func (mm *ModuleManagerImpl) UnregisterModule(moduleID string) error {
 	// 停止模块
 	if module.IsRunning() {
 		if err := module.Stop(); err != nil {
-			mm.logger.Warn("Failed to stop module during unregistration", "module", moduleID, "error", err.Error())
+			mm.logger.Warn("Failed to stop module during unregistration", zap.String("module", moduleID), zap.String("error", err.Error()))
 		}
 	}
 
 	delete(mm.modules, moduleID)
-	mm.logger.Info("Module unregistered", "module", moduleID)
+	mm.logger.Info("Module unregistered", zap.String("module", moduleID))
 	return nil
 }
 
@@ -197,7 +197,7 @@ func (mm *ModuleManagerImpl) InitializeAll(config map[string]interface{}) error 
 
 		// 初始化模块
 		if err := module.Initialize(moduleConfig, mm.logger); err != nil {
-			mm.logger.Error("Failed to initialize module", "module", moduleID, "error", err.Error())
+			mm.logger.Error("Failed to initialize module", zap.String("module", moduleID), zap.String("error", err.Error()))
 			return fmt.Errorf("failed to initialize module %s: %w", moduleID, err)
 		}
 	}
@@ -216,7 +216,7 @@ func (mm *ModuleManagerImpl) StartAll() error {
 	// 计算模块启动顺序
 	orderedModules, err := mm.calculateStartupOrder()
 	if err != nil {
-		mm.logger.Error("Failed to calculate module startup order", "error", err.Error())
+		mm.logger.Error("Failed to calculate module startup order", zap.String("error", err.Error()))
 		return err
 	}
 
@@ -226,13 +226,13 @@ func (mm *ModuleManagerImpl) StartAll() error {
 
 		// 跳过已禁用的模块
 		if module.GetStatus() == StatusDisabled {
-			mm.logger.Debug("Skipping disabled module", "module", moduleID)
+			mm.logger.Debug("Skipping disabled module", zap.String("module", moduleID))
 			continue
 		}
 
 		// 启动模块
 		if err := module.Start(); err != nil {
-			mm.logger.Error("Failed to start module", "module", moduleID, "error", err.Error())
+			mm.logger.Error("Failed to start module", zap.String("module", moduleID), zap.String("error", err.Error()))
 			return fmt.Errorf("failed to start module %s: %w", moduleID, err)
 		}
 	}
@@ -256,7 +256,7 @@ func (mm *ModuleManagerImpl) StopAll() error {
 		moduleID := module.GetInfo().ID
 		if module.IsRunning() {
 			if err := module.Stop(); err != nil {
-				mm.logger.Error("Failed to stop module", "module", moduleID, "error", err.Error())
+				mm.logger.Error("Failed to stop module", zap.String("module", moduleID), zap.String("error", err.Error()))
 				lastError = err
 			}
 		}
@@ -279,7 +279,7 @@ func (mm *ModuleManagerImpl) StartModule(moduleID string) error {
 
 	// 检查模块是否已运行
 	if module.IsRunning() {
-		mm.logger.Debug("Module already running", "module", moduleID)
+		mm.logger.Debug("Module already running", zap.String("module", moduleID))
 		return nil
 	}
 
@@ -295,7 +295,7 @@ func (mm *ModuleManagerImpl) StartModule(moduleID string) error {
 
 	// 启动模块
 	if err := module.Start(); err != nil {
-		mm.logger.Error("Failed to start module", "module", moduleID, "error", err.Error())
+		mm.logger.Error("Failed to start module", zap.String("module", moduleID), zap.String("error", err.Error()))
 		return err
 	}
 
@@ -316,7 +316,7 @@ func (mm *ModuleManagerImpl) StopModule(moduleID string) error {
 
 	// 停止模块
 	if err := module.Stop(); err != nil {
-		mm.logger.Error("Failed to stop module", "module", moduleID, "error", err.Error())
+		mm.logger.Error("Failed to stop module", zap.String("module", moduleID), zap.String("error", err.Error()))
 		return err
 	}
 
@@ -370,7 +370,7 @@ func (mm *ModuleManagerImpl) UpdateModuleConfig(moduleID string, config map[stri
 
 	// 更新配置
 	if err := module.UpdateConfig(config); err != nil {
-		mm.logger.Error("Failed to update module config", "module", moduleID, "error", err.Error())
+		mm.logger.Error("Failed to update module config", zap.String("module", moduleID), zap.String("error", err.Error()))
 		return err
 	}
 
@@ -468,7 +468,7 @@ func (mm *ModuleManagerImpl) EnableModule(moduleID string) error {
 	// 更新状态
 	if module.GetStatus() == StatusDisabled {
 		module.(*ModuleBase).SetStatus(StatusStopped)
-		mm.logger.Info("Module enabled", "module", moduleID)
+		mm.logger.Info("Module enabled", zap.String("module", moduleID))
 	}
 
 	return nil
@@ -489,13 +489,13 @@ func (mm *ModuleManagerImpl) DisableModule(moduleID string) error {
 	// 停止模块
 	if module.IsRunning() {
 		if err := module.Stop(); err != nil {
-			mm.logger.Warn("Failed to stop module during disable", "module", moduleID, "error", err.Error())
+			mm.logger.Warn("Failed to stop module during disable", zap.String("module", moduleID), zap.String("error", err.Error()))
 		}
 	}
 
 	// 设置为禁用状态
 	module.(*ModuleBase).SetStatus(StatusDisabled)
-	mm.logger.Info("Module disabled", "module", moduleID)
+	mm.logger.Info("Module disabled", zap.String("module", moduleID))
 
 	return nil
 }

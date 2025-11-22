@@ -10,7 +10,7 @@ import (
 
 // CookieHelper Cookie辅助工具
 type CookieHelper struct {
-	jar *http.CookieJar
+	jar http.CookieJar
 }
 
 // NewCookieHelper 创建Cookie辅助工具实例

@@ -2,9 +2,13 @@ package validator
 
 import (
 	"fmt"
+
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 // Validator 验证器接口
@@ -26,19 +30,19 @@ func (v *StringValidator) Validate(obj interface{}) error {
 	if !ok {
 		return &ValidationError{"Value must be a string"}
 	}
-	
+
 	if v.Required && str == "" {
 		return &ValidationError{"Field is required"}
 	}
-	
+
 	if v.Min > 0 && len(str) < v.Min {
 		return &ValidationError{fmt.Sprintf("Length must be at least %d", v.Min)}
 	}
-	
+
 	if v.Max > 0 && len(str) > v.Max {
 		return &ValidationError{fmt.Sprintf("Length must be at most %d", v.Max)}
 	}
-	
+
 	if v.Pattern != "" {
 		matched, err := regexp.MatchString(v.Pattern, str)
 		if err != nil {
@@ -48,7 +52,7 @@ func (v *StringValidator) Validate(obj interface{}) error {
 			return &ValidationError{"Value does not match pattern"}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -67,18 +71,18 @@ func ValidateStruct(obj interface{}) error {
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
-	
+
 	if val.Kind() != reflect.Struct {
 		return &ValidationError{"Object must be a struct or pointer to struct"}
 	}
-	
+
 	typ := val.Type()
 	var errors []string
-	
+
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
 		fieldType := typ.Field(i)
-		
+
 		// 检查required标签
 		required := false
 		if tag := fieldType.Tag.Get("validate"); tag != "" {
@@ -89,17 +93,17 @@ func ValidateStruct(obj interface{}) error {
 				}
 			}
 		}
-		
+
 		// 验证必填字段
 		if required && isZero(field) {
 			errors = append(errors, fmt.Sprintf("%s is required", fieldType.Name))
 		}
 	}
-	
+
 	if len(errors) > 0 {
 		return &ValidationError{strings.Join(errors, "; ")}
 	}
-	
+
 	return nil
 }
 
@@ -120,4 +124,37 @@ func isZero(v reflect.Value) bool {
 	default:
 		return false
 	}
+}
+
+// 全局验证器实例
+var globalValidate = validator.New()
+
+// BindAndValidate 绑定并验证请求数据
+func BindAndValidate(c *gin.Context, obj interface{}) error {
+	// 绑定请求数据
+	if err := c.ShouldBindJSON(obj); err != nil {
+		return &ValidationError{fmt.Sprintf("请求数据绑定失败: %v", err)}
+	}
+
+	// 验证数据
+	if err := globalValidate.Struct(obj); err != nil {
+		return &ValidationError{fmt.Sprintf("数据验证失败: %v", err)}
+	}
+
+	return nil
+}
+
+// BindAndValidateQuery 绑定并验证查询参数
+func BindAndValidateQuery(c *gin.Context, obj interface{}) error {
+	// 绑定查询参数
+	if err := c.ShouldBindQuery(obj); err != nil {
+		return &ValidationError{fmt.Sprintf("查询参数绑定失败: %v", err)}
+	}
+
+	// 验证数据
+	if err := globalValidate.Struct(obj); err != nil {
+		return &ValidationError{fmt.Sprintf("数据验证失败: %v", err)}
+	}
+
+	return nil
 }
