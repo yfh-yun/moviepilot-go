@@ -11,15 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"moviepilot-go/internal/api/middleware"
-	"moviepilot-go/internal/api/routes"
-	"moviepilot-go/internal/config"
-	cacheRedis "moviepilot-go/pkg/cache/redis"
+	"moviepilot-go/internal/infrastructure/bootstrap"
 	"moviepilot-go/pkg/logger"
-	"moviepilot-go/pkg/middlewares"
 )
 
 const (
@@ -50,96 +45,38 @@ const (
 // @in header
 // @name Authorization
 func main() {
-	// Initialize logger
-	if err := logger.Init(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+	// 使用bootstrap包统一初始化所有组件
+	app, err := bootstrap.Bootstrap()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to bootstrap application: %v\n", err)
 		os.Exit(1)
 	}
 	defer logger.Sync()
 
-	zapLogger := logger.GetLogger()
-	zapLogger.Info("Starting MoviePilot Go server...",
+	app.Logger.Info("Starting MoviePilot Go server...",
 		zap.String("version", AppVersion),
 		zap.String("go_version", runtime.Version()),
 		zap.String("go_os", runtime.GOOS),
 		zap.String("go_arch", runtime.GOARCH),
 	)
 
-	// Load application configuration
-	cfgManager, err := config.NewManager(config.Options{})
-	if err != nil {
-		zapLogger.Fatal("Failed to load configuration", zap.Error(err))
-	}
-	cfg := cfgManager.Get()
-
-	// Initialize Redis cache client
-	if _, err := cacheRedis.Init(cacheRedis.Options{
-		Host:     cfg.Redis.Host,
-		Port:     cfg.Redis.Port,
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	}); err != nil {
-		zapLogger.Fatal("Failed to initialize Redis cache", zap.Error(err))
-	}
-
-	// Set Gin mode based on configuration
-	if cfg.App.Environment == "production" || !cfg.App.Debug {
-		gin.SetMode(gin.ReleaseMode)
-	} else {
-		gin.SetMode(gin.DebugMode)
-	}
-
-	// Initialize Gin engine
-	engine := gin.New()
-
-	// Add essential middleware
-	engine.Use(middlewares.RequestIDMiddleware())
-	engine.Use(middlewares.RecoveryMiddleware())
-	engine.Use(middlewares.CORSMiddleware())
-	engine.Use(middlewares.RateLimitMiddleware())
-
-	// Add request logging middleware
-	engine.Use(middleware.RequestLoggingMiddleware())
-
-	// startTime tracks when the server started
-	startTime := time.Now()
-
-	// Get server port from configuration
-	port := cfg.Server.Port
-
-	// Health check endpoint
-	engine.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    "ok",
-			"timestamp": time.Now().Unix(),
-			"version":   AppVersion,
-			"uptime":    time.Since(startTime).String(),
-			"port":      port,
-		})
-	})
-
-	// Register API routes via centralized router
-	if err := routes.Register(engine, routes.Config{Logger: zapLogger}); err != nil {
-		zapLogger.Fatal("Failed to register routes", zap.Error(err))
-	}
-
 	// Create HTTP server with proper configuration
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, port),
-		Handler:      engine,
-		ReadTimeout:  cfg.Server.ReadTimeout,
-		WriteTimeout: cfg.Server.WriteTimeout,
-		IdleTimeout:  cfg.Server.IdleTimeout,
+		Addr:         fmt.Sprintf("%s:%d", app.Config.App.Host, app.Config.App.Port),
+		Handler:      app.Router,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		zapLogger.Info("Server starting",
-			zap.Int("port", port),
-			zap.String("env", cfg.App.Environment),
+		app.Logger.Info("Server starting",
+			zap.Int("port", app.Config.App.Port),
+			zap.Bool("debug", app.Config.App.Debug),
 		)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			zapLogger.Fatal("Failed to start server", zap.Error(err))
+			app.Logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
 
@@ -148,18 +85,18 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	zapLogger.Info("Shutting down server...")
-
 	// The context is used to inform the server it has the configured timeout to finish
 	// the request it is currently handling
-	shutdownTimeout := cfg.Server.ShutdownTimeout
-
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// 优雅关闭HTTP服务器
 	if err := server.Shutdown(ctx); err != nil {
-		zapLogger.Fatal("Server forced to shutdown", zap.Error(err))
+		app.Logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
-	zapLogger.Info("Server exited gracefully")
+	// 关闭所有组件
+	if err := app.Shutdown(ctx); err != nil {
+		app.Logger.Fatal("Failed to shutdown application gracefully", zap.Error(err))
+	}
 }

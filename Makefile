@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker docker-build docker-run docker-stop lint fmt vet
+.PHONY: help build run test clean docker docker-build docker-run docker-stop lint fmt vet migrate-up migrate-down migrate-reset migrate-seed
 
 # 默认目标
 help:
@@ -109,7 +109,9 @@ migrate:
 # 生成API文档
 swagger:
 	@echo "生成API文档..."
-	swag init -g cmd/server/main.go -o docs/swagger
+	swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+	@echo "Swagger 文档已生成到 docs/ 目录"
+	@echo "访问 http://localhost:3001/swagger/index.html 查看文档"
 
 # 安装开发工具
 install-tools:
@@ -164,3 +166,34 @@ setup-dev:
 	$(MAKE) install-tools
 	$(MAKE) dev
 	@echo "开发环境设置完成"
+
+# 数据库迁移命令
+DB_URL := postgresql://moviepilot:moviepilot@localhost:5432/moviepilot?sslmode=disable
+
+migrate-up:
+	@echo "执行数据库迁移（向上）..."
+	migrate -path database/migrations -database "$(DB_URL)" up
+	@echo "迁移完成"
+
+migrate-down:
+	@echo "回滚数据库迁移（向下）..."
+	migrate -path database/migrations -database "$(DB_URL)" down 1
+	@echo "回滚完成"
+
+migrate-reset:
+	@echo "重置数据库..."
+	migrate -path database/migrations -database "$(DB_URL)" down
+	migrate -path database/migrations -database "$(DB_URL)" up
+	@echo "重置完成"
+
+migrate-seed:
+	@echo "插入种子数据..."
+	psql "$(DB_URL)" -f database/seeds/001_insert_default_roles.sql
+	psql "$(DB_URL)" -f database/seeds/002_insert_default_permissions.sql
+	psql "$(DB_URL)" -f database/seeds/003_insert_role_permissions.sql
+	psql "$(DB_URL)" -f database/seeds/004_insert_default_admin.sql
+	@echo "种子数据插入完成"
+
+migrate-status:
+	@echo "查看迁移状态..."
+	migrate -path database/migrations -database "$(DB_URL)" version

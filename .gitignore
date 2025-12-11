@@ -56,10 +56,11 @@ configs/*.crt
 # Data directories
 data/
 downloads/
-media/
-!internal/business/media/
-cache/
+/media
+
 temp/
+# 只忽略根目录下的 cache 目录，不忽略 pkg/cache
+/cache
 
 # Coverage reports
 coverage.out

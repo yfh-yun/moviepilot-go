@@ -10,31 +10,8 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
-
-// 预定义lumberjack兼容的结构体以避免依赖问题
-type lumberjackLogger struct {
-	Filename   string
-	MaxSize    int
-	MaxBackups int
-	MaxAge     int
-	Compress   bool
-	LocalTime  bool
-}
-
-func (l *lumberjackLogger) Write(p []byte) (n int, err error) {
-	// 简化实现，实际使用时会替换为真实的lumberjack.Logger
-	file, err := os.OpenFile(l.Filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return 0, err
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-	return file.Write(p)
-}
 
 var (
 	// Logger 全局日志实例
@@ -185,8 +162,8 @@ func buildMultiWriterLogger(logConfig *zap.Config) (*zap.Logger, error) {
 		filePath = getEnvOrDefault(envPrefix+"FILE", "/var/log/moviepilot/app.log")
 	}
 
-	// 创建文件写入器（使用兼容结构体）
-	fileWriter := &lumberjackLogger{
+	// 创建文件写入器（使用真实的 lumberjack.Logger 进行日志轮转）
+	fileWriter := &lumberjack.Logger{
 		Filename:   filePath,
 		MaxSize:    getIntEnvOrDefault(envPrefix+"MAX_SIZE", 100),
 		MaxBackups: getIntEnvOrDefault(envPrefix+"MAX_BACKUPS", 3),
@@ -357,32 +334,32 @@ func (l *ContextLogger) Panic(msg string, fields ...zap.Field) {
 }
 
 // Debugf 带上下文的格式化调试日志
-func (l *ContextLogger) Debugf(template string, args ...interface{}) {
+func (l *ContextLogger) Debugf(template string, args ...any) {
 	l.logger.Sugar().Debugf(template, args...)
 }
 
 // Infof 带上下文的格式化信息日志
-func (l *ContextLogger) Infof(template string, args ...interface{}) {
+func (l *ContextLogger) Infof(template string, args ...any) {
 	l.logger.Sugar().Infof(template, args...)
 }
 
 // Warnf 带上下文的格式化警告日志
-func (l *ContextLogger) Warnf(template string, args ...interface{}) {
+func (l *ContextLogger) Warnf(template string, args ...any) {
 	l.logger.Sugar().Warnf(template, args...)
 }
 
 // Errorf 带上下文的格式化错误日志
-func (l *ContextLogger) Errorf(template string, args ...interface{}) {
+func (l *ContextLogger) Errorf(template string, args ...any) {
 	l.logger.Sugar().Errorf(template, args...)
 }
 
 // Fatalf 带上下文的格式化致命错误日志
-func (l *ContextLogger) Fatalf(template string, args ...interface{}) {
+func (l *ContextLogger) Fatalf(template string, args ...any) {
 	l.logger.Sugar().Fatalf(template, args...)
 }
 
 // Panicf 带上下文的格式化Panic日志
-func (l *ContextLogger) Panicf(template string, args ...interface{}) {
+func (l *ContextLogger) Panicf(template string, args ...any) {
 	l.logger.Sugar().Panicf(template, args...)
 }
 
@@ -399,8 +376,6 @@ func GetSugar() *zap.SugaredLogger {
 	}
 	return Sugar
 }
-
-
 
 // Sync 同步日志缓冲区
 func Sync() {
@@ -440,31 +415,31 @@ func Panic(msg string, fields ...zap.Field) {
 }
 
 // Debugf 格式化调试日志
-func Debugf(template string, args ...interface{}) {
+func Debugf(template string, args ...any) {
 	GetSugar().Debugf(template, args...)
 }
 
 // Infof 格式化信息日志
-func Infof(template string, args ...interface{}) {
+func Infof(template string, args ...any) {
 	GetSugar().Infof(template, args...)
 }
 
 // Warnf 格式化警告日志
-func Warnf(template string, args ...interface{}) {
+func Warnf(template string, args ...any) {
 	GetSugar().Warnf(template, args...)
 }
 
 // Errorf 格式化错误日志
-func Errorf(template string, args ...interface{}) {
+func Errorf(template string, args ...any) {
 	GetSugar().Errorf(template, args...)
 }
 
 // Fatalf 格式化致命错误日志
-func Fatalf(template string, args ...interface{}) {
+func Fatalf(template string, args ...any) {
 	GetSugar().Fatalf(template, args...)
 }
 
 // Panicf 格式化Panic日志
-func Panicf(template string, args ...interface{}) {
+func Panicf(template string, args ...any) {
 	GetSugar().Panicf(template, args...)
 }

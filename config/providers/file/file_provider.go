@@ -22,7 +22,7 @@ func NewFileProvider(basePath string) *FileProvider {
 }
 
 // Load 加载配置文件
-func (p *FileProvider) Load(ctx context.Context, path string) (map[string]interface{}, error) {
+func (p *FileProvider) Load(ctx context.Context, path string) (map[string]any, error) {
 	fullPath := filepath.Join(p.basePath, path)
 
 	data, err := os.ReadFile(fullPath)
@@ -30,7 +30,7 @@ func (p *FileProvider) Load(ctx context.Context, path string) (map[string]interf
 		return nil, err
 	}
 
-	var config map[string]interface{}
+	var config map[string]any
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
@@ -39,13 +39,13 @@ func (p *FileProvider) Load(ctx context.Context, path string) (map[string]interf
 }
 
 // Watch 监听文件变化
-func (p *FileProvider) Watch(ctx context.Context, path string, callback func(map[string]interface{})) error {
+func (p *FileProvider) Watch(ctx context.Context, path string, callback func(map[string]any)) error {
 	// TODO: 实现文件监听
 	return nil
 }
 
 // Save 保存配置文件
-func (p *FileProvider) Save(ctx context.Context, path string, config map[string]interface{}) error {
+func (p *FileProvider) Save(ctx context.Context, path string, config map[string]any) error {
 	fullPath := filepath.Join(p.basePath, path)
 
 	// 确保目录存在
@@ -62,7 +62,7 @@ func (p *FileProvider) Save(ctx context.Context, path string, config map[string]
 }
 
 // Validate 验证配置
-func (p *FileProvider) Validate(ctx context.Context, config map[string]interface{}, rules map[string]interface{}) error {
+func (p *FileProvider) Validate(ctx context.Context, config map[string]any, rules map[string]any) error {
 	// TODO: 实现配置验证
 	return nil
 }

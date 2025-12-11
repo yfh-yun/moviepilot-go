@@ -1,0 +1,14 @@
+# Grafana仪表板配置
+
+apiVersion: 1
+
+providers:
+  - name: 'MoviePilot Dashboards'
+    orgId: 1
+    folder: 'MoviePilot'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

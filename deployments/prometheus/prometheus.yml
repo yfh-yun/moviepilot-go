@@ -1,0 +1,70 @@
+# Prometheus配置文件
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'moviepilot'
+    environment: 'production'
+
+# 告警规则文件
+rule_files:
+  - 'alerts.yml'
+
+# 抓取配置
+scrape_configs:
+  # Prometheus自身监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # MoviePilot Go应用监控
+  - job_name: 'moviepilot-go'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['moviepilot-go:3001']
+        labels:
+          service: 'moviepilot-go'
+          app: 'moviepilot'
+
+  # Python插件服务监控
+  - job_name: 'python-plugins'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['python-plugins:5000']
+        labels:
+          service: 'python-plugins'
+          app: 'moviepilot'
+
+  # PostgreSQL监控（需要postgres_exporter）
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          app: 'moviepilot'
+
+  # Redis监控（需要redis_exporter）
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          app: 'moviepilot'
+
+  # Node Exporter（系统监控）
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node'
+          app: 'moviepilot'
+
+# Alertmanager配置
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - targets: ['alertmanager:9093']

@@ -1,628 +1,909 @@
 package utils
 
 import (
-	"context"
+	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
+
+	cpuutil "github.com/shirou/gopsutil/v3/cpu"
+	memutil "github.com/shirou/gopsutil/v3/mem"
+	netutil "github.com/shirou/gopsutil/v3/net"
+	processutil "github.com/shirou/gopsutil/v3/process"
 )
 
-// SystemHelper 系统工具类
-type SystemHelper struct {
-	systemFlagFile string
-	eventHandlers  map[string]func(event interface{})
-	mutex          sync.RWMutex
-}
-
-// SystemEvent 系统事件
-type SystemEvent struct {
-	Type      string                 `json:"type"`
-	Timestamp time.Time              `json:"timestamp"`
-	Data      map[string]interface{} `json:"data"`
-}
-
-// ConfigChangeEventData 配置变更事件数据
-type ConfigChangeEventData struct {
-	Key   string      `json:"key"`
-	Old   interface{} `json:"old"`
-	New   interface{} `json:"new"`
-}
-
-// SystemInfo 系统信息
-type SystemInfo struct {
-	OS           string    `json:"os"`
-	Arch         string    `json:"arch"`
-	Hostname     string    `json:"hostname"`
-	CPUCount     int       `json:"cpu_count"`
-	MemoryTotal  uint64    `json:"memory_total"`
-	MemoryUsed   uint64    `json:"memory_used"`
-	DiskTotal    uint64    `json:"disk_total"`
-	DiskUsed     uint64    `json:"disk_used"`
-	Uptime       time.Time `json:"uptime"`
-	IsDocker     bool      `json:"is_docker"`
-	IsFrozen     bool      `json:"is_frozen"`
-}
-
-// NewSystemHelper 创建系统助手实例
-func NewSystemHelper() *SystemHelper {
-	return &SystemHelper{
-		systemFlagFile: "/var/log/nginx/__moviepilot__",
-		eventHandlers:  make(map[string]func(event interface{})),
+// Execute 对应 Python SystemUtils.execute
+// 使用 shell 执行命令并返回第一行输出
+func Execute(cmd string) (string, error) {
+	if strings.TrimSpace(cmd) == "" {
+		return "", errors.New("empty command")
 	}
+
+	// 为了兼容不同平台，这里不做复杂的 shell 解析，直接交给 /bin/sh 或 cmd
+	var c *exec.Cmd
+	if runtime.GOOS == "windows" {
+		c = exec.Command("cmd", "/C", cmd)
+	} else {
+		c = exec.Command("sh", "-c", cmd)
+	}
+
+	out, err := c.Output()
+	if err != nil {
+		return "", err
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	if scanner.Scan() {
+		return strings.TrimSpace(scanner.Text()), nil
+	}
+	return "", nil
 }
 
-// CanRestart 判断是否可以内部重启
-func (sh *SystemHelper) CanRestart() bool {
-	// 检查Docker socket是否存在
-	if _, err := os.Stat("/var/run/docker.sock"); err == nil {
+// ExecuteWithSubprocess 对应 Python SystemUtils.execute_with_subprocess
+// 执行命令并捕获标准输出和错误输出
+func ExecuteWithSubprocess(cmd []string) (bool, string) {
+	if len(cmd) == 0 {
+		return false, "空命令"
+	}
+
+	c := exec.Command(cmd[0], cmd[1:]...)
+	out, err := c.CombinedOutput()
+	output := string(out)
+
+	if err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			errorMsg := fmt.Sprintf("命令：%s，执行失败，错误信息：%s", strings.Join(cmd, " "), strings.TrimSpace(output))
+			return false, errorMsg
+		}
+		return false, fmt.Sprintf("未知错误，命令：%s，错误：%v", strings.Join(cmd, " "), err)
+	}
+
+	return true, output
+}
+
+// IsDocker 判断当前是否运行在 Docker 环境，对应 SystemUtils.is_docker
+func IsDocker() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
 		return true
 	}
-
-	// 检查Docker客户端API
-	dockerClientAPI := os.Getenv("DOCKER_CLIENT_API")
-	if dockerClientAPI != "" && dockerClientAPI != "tcp://127.0.0.1:38379" {
-		return true
+	// 某些环境不会有 /.dockerenv，可以再简单检查一下 cgroup 信息
+	if b, err := os.ReadFile("/proc/1/cgroup"); err == nil {
+		if strings.Contains(strings.ToLower(string(b)), "docker") ||
+			strings.Contains(strings.ToLower(string(b)), "kubepods") {
+			return true
+		}
 	}
-
 	return false
 }
 
-// Restart 重启系统
-func (sh *SystemHelper) Restart() error {
-	if !sh.CanRestart() {
-		return fmt.Errorf("system restart is not supported")
+// IsSynology 对应 Python SystemUtils.is_synology
+// 判断是否为群晖系统
+func IsSynology() bool {
+	if IsWindows() {
+		return false
 	}
-
-	// 发送重启信号
-	pid := os.Getpid()
-	process, err := os.FindProcess(pid)
+	output, err := Execute("uname -a")
 	if err != nil {
-		return fmt.Errorf("failed to find process: %v", err)
+		return false
 	}
-
-	// 发送SIGTERM信号
-	if err := process.Signal(syscall.SIGTERM); err != nil {
-		return fmt.Errorf("failed to send restart signal: %v", err)
-	}
-
-	return nil
+	return strings.Contains(strings.ToLower(output), "synology")
 }
 
-// Shutdown 关闭系统
-func (sh *SystemHelper) Shutdown() error {
-	pid := os.Getpid()
-	process, err := os.FindProcess(pid)
+// IsWindows 对应 SystemUtils.is_windows
+func IsWindows() bool {
+	return runtime.GOOS == "windows"
+}
+
+// IsMacOS 对应 SystemUtils.is_macos
+func IsMacOS() bool {
+	return runtime.GOOS == "darwin"
+}
+
+// IsAarch64 对应 SystemUtils.is_aarch64
+func IsAarch64() bool {
+	return runtime.GOARCH == "arm64" || runtime.GOARCH == "aarch64"
+}
+
+// IsAarch 对应 SystemUtils.is_aarch（32 位 ARM）
+func IsAarch() bool {
+	return strings.HasPrefix(runtime.GOARCH, "arm") && !IsAarch64()
+}
+
+// IsX86_64 对应 SystemUtils.is_x86_64
+func IsX86_64() bool {
+	return runtime.GOARCH == "amd64" || runtime.GOARCH == "x86_64"
+}
+
+// IsX86_32 对应 SystemUtils.is_x86_32
+func IsX86_32() bool {
+	arch := runtime.GOARCH
+	return arch == "386" || arch == "i386" || arch == "i686" || arch == "x86"
+}
+
+// Platform 对应 SystemUtils.platform
+func Platform() string {
+	if IsWindows() {
+		return "Windows"
+	}
+	if IsMacOS() {
+		return "MacOS"
+	}
+	if IsAarch64() {
+		return "Arm64"
+	}
+	return "Linux"
+}
+
+// CPUArch 对应 SystemUtils.cpu_arch
+func CPUArch() string {
+	if IsX86_64() {
+		return "x86_64"
+	}
+	if IsX86_32() {
+		return "x86_32"
+	}
+	if IsAarch64() {
+		return "Arm64"
+	}
+	if IsAarch() {
+		return "Arm32"
+	}
+	return runtime.GOARCH
+}
+
+// Copy 对应 SystemUtils.copy，复制文件
+func Copy(src, dest string) error {
+	info, err := os.Stat(src)
 	if err != nil {
-		return fmt.Errorf("failed to find process: %v", err)
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("src is not a regular file: %s", src)
 	}
 
-	// 发送SIGINT信号
-	if err := process.Signal(syscall.SIGINT); err != nil {
-		return fmt.Errorf("failed to send shutdown signal: %v", err)
-	}
-
-	return nil
-}
-
-// GetSystemInfo 获取系统信息
-func (sh *SystemHelper) GetSystemInfo() (*SystemInfo, error) {
-	info := &SystemInfo{
-		OS:       runtime.GOOS,
-		Arch:     runtime.GOARCH,
-		CPUCount: runtime.NumCPU(),
-		IsDocker: IsDockerEnvironment(),
-		IsFrozen: IsFrozenEnvironment(),
-	}
-
-	// 获取主机名
-	if hostname, err := os.Hostname(); err == nil {
-		info.Hostname = hostname
-	}
-
-	// 获取内存信息
-	if memInfo, err := sh.getMemoryInfo(); err == nil {
-		info.MemoryTotal = memInfo.Total
-		info.MemoryUsed = memInfo.Used
-	}
-
-	// 获取磁盘信息
-	if diskInfo, err := sh.getDiskInfo(); err == nil {
-		info.DiskTotal = diskInfo.Total
-		info.DiskUsed = diskInfo.Used
-	}
-
-	// 获取启动时间
-	if uptime, err := sh.getUptime(); err == nil {
-		info.Uptime = uptime
-	}
-
-	return info, nil
-}
-
-// MemoryInfo 内存信息
-type MemoryInfo struct {
-	Total uint64 `json:"total"`
-	Used  uint64 `json:"used"`
-	Free  uint64 `json:"free"`
-}
-
-// getMemoryInfo 获取内存信息
-func (sh *SystemHelper) getMemoryInfo() (*MemoryInfo, error) {
-	if runtime.GOOS != "linux" {
-		return nil, fmt.Errorf("memory info not supported on %s", runtime.GOOS)
-	}
-
-	data, err := os.ReadFile("/proc/meminfo")
+	srcFile, err := os.Open(src)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read /proc/meminfo: %v", err)
+		return err
+	}
+	defer srcFile.Close()
+
+	// 确保目标目录存在
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
 	}
 
-	lines := strings.Split(string(data), "\n")
-	var memTotal, memAvailable uint64
-
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-
-		switch fields[0] {
-		case "MemTotal:":
-			if val, err := strconv.ParseUint(fields[1], 10, 64); err == nil {
-				memTotal = val * 1024 // 转换为字节
-			}
-		case "MemAvailable:":
-			if val, err := strconv.ParseUint(fields[1], 10, 64); err == nil {
-				memAvailable = val * 1024 // 转换为字节
-			}
-		}
-	}
-
-	if memTotal == 0 {
-		return nil, fmt.Errorf("failed to parse memory info")
-	}
-
-	return &MemoryInfo{
-		Total: memTotal,
-		Used:  memTotal - memAvailable,
-		Free:  memAvailable,
-	}, nil
-}
-
-// DiskInfo 磁盘信息
-type DiskInfo struct {
-	Total uint64 `json:"total"`
-	Used  uint64 `json:"used"`
-	Free  uint64 `json:"free"`
-}
-
-// getDiskInfo 获取磁盘信息
-func (sh *SystemHelper) getDiskInfo() (*DiskInfo, error) {
-	// 获取当前目录的磁盘信息
-	stat := syscall.Statfs_t{}
-	if err := syscall.Statfs(".", &stat); err != nil {
-		return nil, fmt.Errorf("failed to get disk info: %v", err)
-	}
-
-	total := stat.Blocks * uint64(stat.Bsize)
-	free := stat.Bavail * uint64(stat.Bsize)
-	used := total - free
-
-	return &DiskInfo{
-		Total: total,
-		Used:  used,
-		Free:  free,
-	}, nil
-}
-
-// getUptime 获取系统启动时间
-func (sh *SystemHelper) getUptime() (time.Time, error) {
-	if runtime.GOOS != "linux" {
-		return time.Time{}, fmt.Errorf("uptime not supported on %s", runtime.GOOS)
-	}
-
-	data, err := os.ReadFile("/proc/uptime")
+	destFile, err := os.Create(dest)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to read /proc/uptime: %v", err)
+		return err
+	}
+	defer destFile.Close()
+
+	if _, err := bufio.NewReader(srcFile).WriteTo(destFile); err != nil {
+		return err
 	}
 
-	parts := strings.Fields(string(data))
-	if len(parts) < 1 {
-		return time.Time{}, fmt.Errorf("invalid uptime format")
+	return os.Chmod(dest, info.Mode())
+}
+
+// Move 对应 SystemUtils.move，移动/重命名路径
+// 按照 Python 版本逻辑：先将源文件在当前目录下重命名为目标文件的名称，然后移动到目标目录
+func Move(src, dest string) error {
+	// 解析源文件和目标文件的路径
+	srcPath := filepath.Clean(src)
+	destPath := filepath.Clean(dest)
+
+	// 获取源文件的目录
+	srcDir := filepath.Dir(srcPath)
+	// 获取目标文件的名称
+	destName := filepath.Base(destPath)
+	// 获取目标文件的目录
+	destDir := filepath.Dir(destPath)
+
+	// 先确保目标目录存在
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return err
 	}
 
-	seconds, err := strconv.ParseFloat(parts[0], 64)
+	// 1. 将源文件在当前目录下重命名为目标文件的名称
+	tempPath := filepath.Join(srcDir, destName)
+	if err := os.Rename(srcPath, tempPath); err != nil {
+		return err
+	}
+
+	// 2. 将重命名后的文件移动到目标目录
+	return os.Rename(tempPath, destPath)
+}
+
+// HardLink 对应 SystemUtils.link，创建硬链接
+// 按照 Python 版本逻辑：先创建带有 .mp 后缀的临时硬链接，然后重命名为目标文件
+func HardLink(src, dest string) error {
+	// 解析源文件和目标文件的路径
+	srcPath := filepath.Clean(src)
+	destPath := filepath.Clean(dest)
+
+	// 确保目标目录存在
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return err
+	}
+
+	// 1. 准备目标路径，增加后缀 .mp
+	tmpPath := destPath + ".mp"
+
+	// 2. 检查目标路径是否已存在，如果存在则先删除
+	if _, err := os.Stat(tmpPath); err == nil {
+		if err := os.Remove(tmpPath); err != nil {
+			return err
+		}
+	}
+
+	// 3. 创建硬链接到临时路径
+	if err := os.Link(srcPath, tmpPath); err != nil {
+		return err
+	}
+
+	// 4. 硬链接完成，移除 .mp 后缀（将临时文件重命名为目标文件）
+	return os.Rename(tmpPath, destPath)
+}
+
+// SoftLink 对应 SystemUtils.softlink，创建符号链接
+func SoftLink(src, dest string) error {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	_ = os.Remove(dest)
+	return os.Symlink(src, dest)
+}
+
+// IsHardlink 对应 Python SystemUtils.is_hardlink
+// 判断两个路径是否为硬链接
+func IsHardlink(src, dest string) bool {
+	srcInfo, err := os.Stat(src)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to parse uptime: %v", err)
+		return false
 	}
-
-	uptime := time.Duration(seconds) * time.Second
-	return time.Now().Add(-uptime), nil
-}
-
-// RegisterEventHandler 注册事件处理器
-func (sh *SystemHelper) RegisterEventHandler(eventType string, handler func(event interface{})) {
-	sh.mutex.Lock()
-	defer sh.mutex.Unlock()
-
-	sh.eventHandlers[eventType] = handler
-}
-
-// UnregisterEventHandler 注销事件处理器
-func (sh *SystemHelper) UnregisterEventHandler(eventType string) {
-	sh.mutex.Lock()
-	defer sh.mutex.Unlock()
-
-	delete(sh.eventHandlers, eventType)
-}
-
-// TriggerEvent 触发事件
-func (sh *SystemHelper) TriggerEvent(event *SystemEvent) {
-	sh.mutex.RLock()
-	handler, exists := sh.eventHandlers[event.Type]
-	sh.mutex.RUnlock()
-
-	if exists {
-		handler(event)
-	}
-}
-
-// HandleConfigChanged 处理配置变更事件
-func (sh *SystemHelper) HandleConfigChanged(eventData *ConfigChangeEventData) {
-	// 检查是否为日志相关配置变更
-	logKeys := []string{
-		"DEBUG",
-		"LOG_LEVEL",
-		"LOG_MAX_FILE_SIZE",
-		"LOG_BACKUP_COUNT",
-		"LOG_FILE_FORMAT",
-		"LOG_CONSOLE_FORMAT",
-	}
-
-	for _, key := range logKeys {
-		if eventData.Key == key {
-			// 触发日志更新事件
-			event := &SystemEvent{
-				Type:      "log_config_changed",
-				Timestamp: time.Now(),
-				Data: map[string]interface{}{
-					"config_change": eventData,
-				},
-			}
-			sh.TriggerEvent(event)
-			break
-		}
-	}
-}
-
-// SetupSignalHandlers 设置信号处理器
-func (sh *SystemHelper) SetupSignalHandlers() {
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-
-	go func() {
-		for sig := range sigChan {
-			switch sig {
-			case syscall.SIGINT, syscall.SIGTERM:
-				event := &SystemEvent{
-					Type:      "shutdown",
-					Timestamp: time.Now(),
-					Data: map[string]interface{}{
-						"signal": sig.String(),
-					},
-				}
-				sh.TriggerEvent(event)
-			case syscall.SIGHUP:
-				event := &SystemEvent{
-					Type:      "reload",
-					Timestamp: time.Now(),
-					Data: map[string]interface{}{
-						"signal": sig.String(),
-					},
-				}
-				sh.TriggerEvent(event)
-			}
-		}
-	}()
-}
-
-// GetEnvironmentInfo 获取环境信息
-func (sh *SystemHelper) GetEnvironmentInfo() map[string]interface{} {
-	info := make(map[string]interface{})
-
-	// 环境变量
-	envVars := make(map[string]string)
-	for _, env := range os.Environ() {
-		parts := strings.SplitN(env, "=", 2)
-		if len(parts) == 2 {
-			envVars[parts[0]] = parts[1]
-		}
-	}
-	info["environment"] = envVars
-
-	// 运行时信息
-	info["runtime"] = map[string]interface{}{
-		"go_version": runtime.Version(),
-		"go_os":      runtime.GOOS,
-		"go_arch":    runtime.GOARCH,
-		"cpu_count":  runtime.NumCPU(),
-		"goroutines": runtime.NumGoroutine(),
-	}
-
-	// 进程信息
-	info["process"] = map[string]interface{}{
-		"pid":  os.Getpid(),
-		"ppid": os.Getppid(),
-		"uid":  os.Getuid(),
-		"gid":  os.Getgid(),
-	}
-
-	return info
-}
-
-// ExecuteCommand 执行系统命令
-func (sh *SystemHelper) ExecuteCommand(command string, args ...string) (string, error) {
-	cmd := exec.Command(command, args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("command failed: %v, output: %s", err, string(output))
-	}
-
-	return string(output), nil
-}
-
-// ExecuteCommandWithTimeout 执行带超时的系统命令
-func (sh *SystemHelper) ExecuteCommandWithTimeout(timeout time.Duration, command string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, command, args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("command timed out after %v", timeout)
-		}
-		return "", fmt.Errorf("command failed: %v, output: %s", err, string(output))
-	}
-
-	return string(output), nil
-}
-
-// GetProcessInfo 获取进程信息
-func (sh *SystemHelper) GetProcessInfo(pid int) (*ProcessInfo, error) {
-	if runtime.GOOS != "linux" {
-		return nil, fmt.Errorf("process info not supported on %s", runtime.GOOS)
-	}
-
-	// 读取进程状态文件
-	statFile := fmt.Sprintf("/proc/%d/stat", pid)
-	data, err := os.ReadFile(statFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read process stat: %v", err)
-	}
-
-	fields := strings.Fields(string(data))
-	if len(fields) < 24 {
-		return nil, fmt.Errorf("invalid process stat format")
-	}
-
-	// 解析进程信息
-	info := &ProcessInfo{
-		PID: pid,
-	}
-
-	// 进程名称（可能包含空格和括号）
-	if len(fields) > 1 {
-		name := fields[1]
-		if len(name) > 2 && name[0] == '(' && name[len(name)-1] == ')' {
-			info.Name = name[1 : len(name)-1]
-		} else {
-			info.Name = name
-		}
-	}
-
-	// 状态
-	if len(fields) > 2 {
-		info.Status = fields[2]
-	}
-
-	// 父进程ID
-	if len(fields) > 3 {
-		if ppid, err := strconv.Atoi(fields[3]); err == nil {
-			info.PPID = ppid
-		}
-	}
-
-	// 启动时间
-	if len(fields) > 21 {
-		if starttime, err := strconv.ParseUint(fields[21], 10, 64); err == nil {
-			// 转换为实际时间
-			info.StartTime = time.Unix(int64(starttime)/100, 0)
-		}
-	}
-
-	return info, nil
-}
-
-// ProcessInfo 进程信息
-type ProcessInfo struct {
-	PID       int       `json:"pid"`
-	PPID      int       `json:"ppid"`
-	Name      string    `json:"name"`
-	Status    string    `json:"status"`
-	StartTime time.Time `json:"start_time"`
-}
-
-// IsProcessRunning 检查进程是否运行
-func (sh *SystemHelper) IsProcessRunning(pid int) bool {
-	process, err := os.FindProcess(pid)
+	destInfo, err := os.Stat(dest)
 	if err != nil {
 		return false
 	}
 
-	// 发送信号0检查进程是否存在
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	// 如果源路径是文件，直接比较两个文件
+	if srcInfo.Mode().IsRegular() {
+		return os.SameFile(srcInfo, destInfo)
+	}
+
+	// 如果源路径是目录，遍历所有文件进行比较
+	var isSame bool = true
+	err = filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			isSame = false
+			return filepath.SkipDir
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+
+		// 计算目标文件路径
+		relativePath, err := filepath.Rel(src, path)
+		if err != nil {
+			isSame = false
+			return filepath.SkipDir
+		}
+		targetPath := filepath.Join(dest, relativePath)
+
+		// 检查目标文件是否存在
+		targetInfo, err := os.Stat(targetPath)
+		if err != nil {
+			isSame = false
+			return filepath.SkipDir
+		}
+
+		// 检查是否是硬链接
+		if !os.SameFile(info, targetInfo) {
+			isSame = false
+			return filepath.SkipDir
+		}
+
+		return nil
+	})
+
+	return isSame
 }
 
-// KillProcess 杀死进程
-func (sh *SystemHelper) KillProcess(pid int, signal syscall.Signal) error {
-	process, err := os.FindProcess(pid)
+// CPUUsage 对应 Python SystemUtils.cpu_usage
+// 获取CPU使用率
+func CPUUsage() float64 {
+	percent, err := cpuutil.Percent(0, false)
+	if err != nil || len(percent) == 0 {
+		return 0.0
+	}
+	return percent[0]
+}
+
+// MemoryUsage 对应 Python SystemUtils.memory_usage
+// 获取当前程序的内存使用量和使用率
+// 返回值：[进程内存使用量（byte）, 进程内存使用率（%）]
+func MemoryUsage() []int64 {
+	// 获取当前进程ID
+	pid := int32(os.Getpid())
+	// 获取进程对象
+	process, err := processutil.NewProcess(pid)
 	if err != nil {
-		return fmt.Errorf("failed to find process: %v", err)
+		return []int64{0, 0}
 	}
 
-	return process.Signal(signal)
-}
-
-// GetSystemLoad 获取系统负载
-func (sh *SystemHelper) GetSystemLoad() (*SystemLoad, error) {
-	if runtime.GOOS != "linux" {
-		return nil, fmt.Errorf("system load not supported on %s", runtime.GOOS)
-	}
-
-	data, err := os.ReadFile("/proc/loadavg")
+	// 获取进程内存信息
+	memInfo, err := process.MemoryInfo()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read /proc/loadavg: %v", err)
+		return []int64{0, 0}
 	}
 
-	fields := strings.Fields(string(data))
-	if len(fields) < 3 {
-		return nil, fmt.Errorf("invalid loadavg format")
-	}
-
-	load := &SystemLoad{}
-	if load1, err := strconv.ParseFloat(fields[0], 64); err == nil {
-		load.Load1 = load1
-	}
-	if load5, err := strconv.ParseFloat(fields[1], 64); err == nil {
-		load.Load5 = load5
-	}
-	if load15, err := strconv.ParseFloat(fields[2], 64); err == nil {
-		load.Load15 = load15
-	}
-
-	return load, nil
-}
-
-// SystemLoad 系统负载
-type SystemLoad struct {
-	Load1  float64 `json:"load1"`
-	Load5  float64 `json:"load5"`
-	Load15 float64 `json:"load15"`
-}
-
-// GetNetworkInterfaces 获取网络接口信息
-func (sh *SystemHelper) GetNetworkInterfaces() ([]NetworkInterface, error) {
-	interfaces, err := net.Interfaces()
+	// 获取系统内存信息
+	sysMemInfo, err := memutil.VirtualMemory()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get network interfaces: %v", err)
+		return []int64{0, 0}
 	}
 
-	var result []NetworkInterface
-	for _, iface := range interfaces {
-		addrs, err := iface.Addrs()
+	// 计算进程内存使用率
+	processMemory := memInfo.RSS
+	systemMemory := sysMemInfo.Total
+	processMemoryPercent := int64((float64(processMemory) / float64(systemMemory)) * 100)
+
+	return []int64{int64(processMemory), processMemoryPercent}
+}
+
+// NetworkUsage 对应 Python SystemUtils.network_usage
+// 获取当前网络流量（上行和下行流量，单位：bytes/s）
+// 返回值：[上行速度（byte/s）, 下行速度（byte/s）]
+func NetworkUsage() []int64 {
+	// 获取初始网络统计
+	netIO1, err := netutil.IOCounters(false)
+	if err != nil || len(netIO1) == 0 {
+		return []int64{0, 0}
+	}
+
+	// 等待1秒
+	time.Sleep(time.Second)
+
+	// 获取1秒后的网络统计
+	netIO2, err := netutil.IOCounters(false)
+	if err != nil || len(netIO2) == 0 {
+		return []int64{0, 0}
+	}
+
+	// 计算1秒内的流量变化
+	uploadSpeed := netIO2[0].BytesSent - netIO1[0].BytesSent
+	downloadSpeed := netIO2[0].BytesRecv - netIO1[0].BytesRecv
+
+	return []int64{int64(uploadSpeed), int64(downloadSpeed)}
+}
+
+// ListFiles 对应 SystemUtils.list_files
+//   - directory: 根目录
+//   - extensions: 扩展名（不带点，例如 ["mkv","mp4"]），大小写不敏感
+//   - minFilesizeMB: 最小文件大小（MB）
+//   - recursive: 是否递归
+func ListFiles(directory string, extensions []string, minFilesizeMB int64, recursive bool) ([]string, error) {
+	if directory == "" {
+		return nil, nil
+	}
+
+	info, err := os.Stat(directory)
+	if err != nil {
+		return nil, nil
+	}
+
+	if info.Mode().IsRegular() {
+		return []string{directory}, nil
+	}
+
+	var pattern *regexp.Regexp
+	if len(extensions) > 0 {
+		for i, ext := range extensions {
+			extensions[i] = strings.TrimPrefix(strings.ToLower(ext), ".")
+		}
+		// 类似 Python: ".*(mkv|mp4)$"
+		pattern = regexp.MustCompile(".*(\\." + strings.Join(extensions, "|\\.") + ")$")
+	} else {
+		pattern = regexp.MustCompile(".*")
+	}
+
+	minSizeBytes := minFilesizeMB * 1024 * 1024
+	files := make([]string, 0)
+
+	walkFn := func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if !recursive && path != directory {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !pattern.MatchString(strings.ToLower(d.Name())) {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		if info.Size() >= minSizeBytes {
+			files = append(files, path)
+		}
+		return nil
+	}
+
+	if err := filepath.WalkDir(directory, walkFn); err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+// ExistsFiles 对应 SystemUtils.exits_files（注意原拼写）
+func ExistsFiles(directory string, extensions []string, minFilesizeMB int64, recursive bool) bool {
+	files, err := ListFiles(directory, extensions, minFilesizeMB, recursive)
+	if err != nil {
+		return false
+	}
+	return len(files) > 0
+}
+
+// ListSubFiles 对应 SystemUtils.list_sub_files（当前目录下的指定扩展文件，不递归）
+func ListSubFiles(directory string, extensions []string) ([]string, error) {
+	info, err := os.Stat(directory)
+	if err != nil {
+		return nil, nil
+	}
+	if info.Mode().IsRegular() {
+		return []string{directory}, nil
+	}
+
+	pattern := regexp.MustCompile(".*")
+	if len(extensions) > 0 {
+		for i, ext := range extensions {
+			extensions[i] = strings.TrimPrefix(strings.ToLower(ext), ".")
+		}
+		pattern = regexp.MustCompile(".*(\\." + strings.Join(extensions, "|\\.") + ")$")
+	}
+
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return nil, err
+	}
+
+	var files []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if pattern.MatchString(strings.ToLower(e.Name())) {
+			files = append(files, filepath.Join(directory, e.Name()))
+		}
+	}
+	return files, nil
+}
+
+// ListSubDirectories 对应 SystemUtils.list_sub_directory（当前目录下的子目录，不递归）
+func ListSubDirectories(directory string) ([]string, error) {
+	info, err := os.Stat(directory)
+	if err != nil {
+		return nil, nil
+	}
+	if info.Mode().IsRegular() {
+		return nil, nil
+	}
+
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return nil, err
+	}
+
+	var dirs []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !IsWindows() && strings.HasPrefix(name, ".") {
+			continue
+		}
+		if name == "@eaDir" {
+			continue
+		}
+		dirs = append(dirs, filepath.Join(directory, name))
+	}
+	return dirs, nil
+}
+
+// ListSubFile 对应 SystemUtils.list_sub_file（当前目录下所有文件，不递归）
+func ListSubFile(directory string) ([]string, error) {
+	info, err := os.Stat(directory)
+	if err != nil {
+		return nil, nil
+	}
+	if info.Mode().IsRegular() {
+		return []string{directory}, nil
+	}
+
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return nil, err
+	}
+
+	var files []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		files = append(files, filepath.Join(directory, e.Name()))
+	}
+	return files, nil
+}
+
+// GetDirectorySize 对应 SystemUtils.get_directory_size，返回字节数
+func GetDirectorySize(path string) int64 {
+	if path == "" {
+		return 0
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	if info.Mode().IsRegular() {
+		return info.Size()
+	}
+
+	var total int64
+	_ = filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		total += info.Size()
+		return nil
+	})
+	return total
+}
+
+// FreeSpace 使用 `df -B1` 获取路径所在磁盘的可用空间，单位：Byte
+func FreeSpace(path string) int64 {
+	if path == "" {
+		return 0
+	}
+	cmd := exec.Command("df", "-B1", path)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) < 2 {
+		return 0
+	}
+	// 第二行类似：Filesystem 1B-blocks Used Available Use% Mounted on
+	fields := strings.Fields(lines[1])
+	if len(fields) < 4 {
+		return 0
+	}
+	v, err := strconv.ParseInt(fields[3], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// TotalSpace 使用 `df -B1` 获取路径所在磁盘的总空间，单位：Byte
+func TotalSpace(path string) int64 {
+	if path == "" {
+		return 0
+	}
+	cmd := exec.Command("df", "-B1", path)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) < 2 {
+		return 0
+	}
+	fields := strings.Fields(lines[1])
+	if len(fields) < 2 {
+		return 0
+	}
+	v, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// SpaceUsage 对应 SystemUtils.space_usage，统计多个目录所在磁盘的总空间和可用空间（去重磁盘）
+// 返回值：(总空间, 可用空间)，单位：Byte
+func SpaceUsage(dirs []string) (total, free int64) {
+	if len(dirs) == 0 {
+		return 0, 0
+	}
+
+	// 用于存储已处理的磁盘
+	seen := make(map[string]struct{})
+
+	for _, d := range dirs {
+		if d == "" {
+			continue
+		}
+		dirPath := filepath.Clean(d)
+		info, err := os.Stat(dirPath)
 		if err != nil {
 			continue
 		}
 
-		var addresses []string
-		for _, addr := range addrs {
-			addresses = append(addresses, addr.String())
+		// 获取目录所在磁盘
+		var diskKey string
+		if IsWindows() {
+			// Windows：使用驱动器号（如 C:）
+			diskKey = filepath.VolumeName(dirPath)
+		} else {
+			// 其他系统：使用设备号
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+				diskKey = fmt.Sprintf("%d", stat.Dev)
+			} else {
+				// 如果无法获取设备号，使用目录所在的挂载点
+				diskKey = string(os.PathSeparator)
+			}
 		}
 
-		result = append(result, NetworkInterface{
-			Name:      iface.Name,
-			Index:     iface.Index,
-			MTU:       iface.MTU,
-			Flags:     iface.Flags.String(),
-			Addresses: addresses,
-		})
+		// 如果磁盘未处理过，计算其空间并加入总和
+		if _, ok := seen[diskKey]; !ok {
+			seen[diskKey] = struct{}{}
+			total += TotalSpace(dirPath)
+			free += FreeSpace(dirPath)
+		}
+	}
+	return total, free
+}
+
+// IsBlurayDir 对应 SystemUtils.is_bluray_dir
+func IsBlurayDir(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	if _, err := os.Stat(filepath.Join(path, "BDMV")); err == nil {
+		return true
+	}
+	if _, err := os.Stat(filepath.Join(path, "CERTIFICATE")); err == nil {
+		return true
+	}
+	return false
+}
+
+// GetWindowsDrives 对应 SystemUtils.get_windows_drives
+func GetWindowsDrives() []string {
+	if !IsWindows() {
+		return nil
+	}
+	var vols []string
+	for i := 'A'; i <= 'Z'; i++ {
+		vol := fmt.Sprintf("%c:", i)
+		if _, err := os.Stat(vol + "\\"); err == nil {
+			vols = append(vols, vol)
+		}
+	}
+	return vols
+}
+
+// IsNetworkFilesystem 对应 SystemUtils.is_network_filesystem，简单版
+func IsNetworkFilesystem(directory string) bool {
+	if directory == "" {
+		return false
+	}
+	if IsWindows() {
+		// 以 \\ 开头视为网络盘
+		return strings.HasPrefix(directory, "\\\\")
 	}
 
-	return result, nil
-}
-
-// NetworkInterface 网络接口信息
-type NetworkInterface struct {
-	Name      string   `json:"name"`
-	Index     int      `json:"index"`
-	MTU       int      `json:"mtu"`
-	Flags     string   `json:"flags"`
-	Addresses []string `json:"addresses"`
-}
-
-// GetSystemFlagFile 获取系统标志文件
-func (sh *SystemHelper) GetSystemFlagFile() string {
-	return sh.systemFlagFile
-}
-
-// SetSystemFlagFile 设置系统标志文件
-func (sh *SystemHelper) SetSystemFlagFile(file string) {
-	sh.systemFlagFile = file
-}
-
-// CheckSystemFlag 检查系统标志
-func (sh *SystemHelper) CheckSystemFlag() bool {
-	if sh.systemFlagFile == "" {
+	cmd := exec.Command("df", "-T", directory)
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	output := strings.ToLower(string(out))
+	// 本地文件系统中含有 fuse 关键字的需要排除
+	if strings.Contains(output, "fuse.shfs") || strings.Contains(output, "zfuse.zfsv") {
 		return false
 	}
 
-	_, err := os.Stat(sh.systemFlagFile)
-	return err == nil
-}
-
-// CreateSystemFlag 创建系统标志
-func (sh *SystemHelper) CreateSystemFlag() error {
-	if sh.systemFlagFile == "" {
-		return fmt.Errorf("system flag file not set")
+	networkFS := []string{"nfs", "cifs", "smbfs", "fuse", "sshfs", "ftpfs"}
+	for _, fs := range networkFS {
+		if strings.Contains(output, fs) {
+			return true
+		}
 	}
-
-	// 确保目录存在
-	dir := filepath.Dir(sh.systemFlagFile)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %v", err)
-	}
-
-	// 创建标志文件
-	file, err := os.Create(sh.systemFlagFile)
-	if err != nil {
-		return fmt.Errorf("failed to create flag file: %v", err)
-	}
-	defer file.Close()
-
-	return nil
-}
-
-// RemoveSystemFlag 移除系统标志
-func (sh *SystemHelper) RemoveSystemFlag() error {
-	if sh.systemFlagFile == "" {
-		return fmt.Errorf("system flag file not set")
-	}
-
-	return os.Remove(sh.systemFlagFile)
-}
-
-// IsFrozenEnvironment 检查是否在冻结环境中运行
-func IsFrozenEnvironment() bool {
-	// 检查冻结标志文件
-	if _, err := os.Stat("/tmp/moviepilot_frozen"); err == nil {
-		return true
-	}
-
-	// 检查环境变量
-	if os.Getenv("MOVIEPILOT_FROZEN") == "true" {
-		return true
-	}
-
 	return false
+}
+
+// IsSameDisk 对应 SystemUtils.is_same_disk，判断两个路径是否在同一磁盘
+func IsSameDisk(src, dest string) bool {
+	if src == "" || dest == "" {
+		return false
+	}
+
+	// 清理路径
+	srcPath := filepath.Clean(src)
+	destPath := filepath.Clean(dest)
+
+	// 获取源路径的信息
+	srcInfo, err := os.Stat(srcPath)
+	if err != nil {
+		return false
+	}
+
+	// 获取目标路径的信息
+	destInfo, err := os.Stat(destPath)
+	if err != nil {
+		return false
+	}
+
+	// Windows：使用驱动器号比较
+	if IsWindows() {
+		return strings.EqualFold(filepath.VolumeName(srcPath), filepath.VolumeName(destPath))
+	}
+
+	// 其他系统：使用设备号比较
+	srcStat, srcOk := srcInfo.Sys().(*syscall.Stat_t)
+	destStat, destOk := destInfo.Sys().(*syscall.Stat_t)
+
+	if srcOk && destOk {
+		return srcStat.Dev == destStat.Dev
+	}
+
+	// 回退方案：使用路径前缀比较
+	return strings.HasPrefix(srcPath, string(os.PathSeparator)) && strings.HasPrefix(destPath, string(os.PathSeparator))
+}
+
+// GetConfigPath 对应 SystemUtils.get_config_path
+func GetConfigPath(configDir string) string {
+	if configDir == "" {
+		configDir = os.Getenv("CONFIG_DIR")
+	}
+	if configDir != "" {
+		return configDir
+	}
+	if IsDocker() {
+		return "/config"
+	}
+	// Go 版本没有 Python frozen 的概念，这里统一认为是普通二进制，使用工作目录上级的 config
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "config"
+	}
+	return filepath.Join(cwd, "config")
+}
+
+// GetEnvPath 对应 SystemUtils.get_env_path
+func GetEnvPath(configDir string) string {
+	return filepath.Join(GetConfigPath(configDir), "app.env")
+}
+
+// ClearOldFiles 对应 SystemUtils.clear，删除指定目录中 N 天前的文件并清理空目录
+func ClearOldFiles(tempPath string, days int) {
+	info, err := os.Stat(tempPath)
+	if err != nil || !info.IsDir() {
+		return
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -days)
+
+	// 删除旧文件
+	_ = filepath.Walk(tempPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		if info.ModTime().Before(cutoff) {
+			_ = os.Remove(path)
+		}
+		return nil
+	})
+
+	// 再遍历一遍删除空目录
+	_ = filepath.Walk(tempPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.IsDir() || path == tempPath {
+			return nil
+		}
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return nil
+		}
+		if len(entries) == 0 {
+			_ = os.Remove(path)
+		}
+		return nil
+	})
+}
+
+// GenerateUserUniqueID 对应 SystemUtils.generate_user_unique_id
+// 按照 Python 版本逻辑，优先使用：1. 文件系统唯一标识符；2. MAC 地址；3. 主机名
+func GenerateUserUniqueID() string {
+	if id := filesystemUniqueID(); id != "" {
+		return id
+	}
+	if id := macAddressID(); id != "" {
+		return id
+	}
+	// 3. 主机名
+	if hostname, err := os.Hostname(); err == nil && hostname != "" {
+		sum := sha256.Sum256([]byte(hostname))
+		return hex.EncodeToString(sum[:])
+	}
+	return ""
+}
+
+func filesystemUniqueID() string {
+	// 使用根目录的设备号和 inode 生成唯一标识符
+	rootPath := string(os.PathSeparator)
+	info, err := os.Stat(rootPath)
+	if err != nil {
+		return ""
+	}
+
+	// 获取设备号和 inode
+	var dev, ino uint64
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		dev = uint64(stat.Dev)
+		ino = stat.Ino
+	} else {
+		// 如果无法获取设备号和 inode，退化为使用文件信息
+		return ""
+	}
+
+	// 生成哈希
+	data := fmt.Sprintf("%d-%d", dev, ino)
+	sum := sha256.Sum256([]byte(data))
+	return hex.EncodeToString(sum[:])
+}
+
+func macAddressID() string {
+	ifs, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+	for _, iface := range ifs {
+		mac := iface.HardwareAddr.String()
+		if mac == "" {
+			continue
+		}
+
+		// 检查是否是虚拟 MAC 地址（第一个字节的第二个最低位为 1）
+		macBytes := iface.HardwareAddr
+		if len(macBytes) > 0 && (macBytes[0]&0x02) != 0 {
+			// 虚拟 MAC 地址，跳过
+			continue
+		}
+
+		// 生成哈希
+		macStr := strings.ReplaceAll(mac, ":", "")
+		sum := sha256.Sum256([]byte(macStr))
+		return hex.EncodeToString(sum[:])
+	}
+	return ""
 }

@@ -1,147 +1,195 @@
-# MoviePilot Go 项目文档
+# MoviePilot Go 迁移文档索引
 
-## 📋 项目概述
-
-MoviePilot Go 是一个现代化的媒体资源管理系统，采用 Go 语言重构的微服务架构。本项目从原始 Python 版本迁移而来，在性能、可维护性和部署效率方面有显著提升。
-
-## 🏗️ 架构概览
-
-```
-moviepilot-go/                       # Go主应用
-├── cmd/server/main.go               # 应用入口
-├── internal/                        # 私有代码
-│   ├── apis/                        # API层
-│   │   ├── handlers/                # HTTP处理器
-│   │   ├── middlewares/             # 中间件
-│   │   └── routes/                  # 路由定义
-│   ├── business/                    # 业务层
-│   │   ├── domains/                 # 领域模型
-│   │   ├── services/                # 业务服务
-│   │   └── workflows/               # 工作流
-│   ├── infrastructure/              # 基础设施层
-│   ├── models/                      # 数据模型
-│   ├── repositories/                # 数据访问层
-│   └── monitor/                     # 监控系统
-├── pkg/                             # 公共库
-│   ├── database/                    # 数据库连接
-│   ├── cache/                       # 缓存封装
-│   ├── logger/                      # 日志封装
-│   └── plugin/                      # 插件系统
-├── configs/                         # 配置文件
-└── deployments/                     # 部署配置
-```
-
-## 🚀 快速开始
-
-### 环境要求
-
-- Go 1.21+
-- Docker & Docker Compose
-- PostgreSQL 14+
-- Redis 6+
-
-### 本地开发
-
-```bash
-# 克隆项目
-git clone https://github.com/yfh-yun/moviepilot-go.git
-cd moviepilot-go
-
-# 安装依赖
-go mod download
-
-# 启动开发环境
-make dev
-
-# 或使用 Docker Compose
-docker-compose -f deployments/docker-compose.dev.yml up -d
-```
-
-### 配置说明
-
-1. 复制配置文件：`cp configs/config.yaml.sample configs/config.yaml`
-2. 修改数据库连接、Redis 等配置
-3. 启动应用：`go run cmd/server/main.go`
-
-## 📚 文档导航
-
-### 核心文档
-- [架构设计](./architecture/README.md) - 系统架构和设计原则
-- [API文档](./api/README.md) - REST API 接口说明
-- [部署指南](./deployment/README.md) - 部署和运维指南
-
-### 开发文档
-- [开发规范](./development/README.md) - 代码规范和最佳实践
-- [插件开发](./plugins/README.md) - 插件系统开发指南
-- [数据库设计](./database/README.md) - 数据模型和迁移
-
-### 运维文档
-- [监控告警](./monitoring/README.md) - 系统监控和告警配置
-- [性能优化](./performance/README.md) - 性能调优指南
-- [故障排查](./troubleshooting/README.md) - 常见问题解决
-
-## 🔧 技术栈
-
-### 后端技术
-- **框架**: Gin (HTTP), gRPC (服务间通信)
-- **ORM**: GORM
-- **数据库**: PostgreSQL (主), Redis (缓存)
-- **日志**: Zap + 自定义封装
-- **配置**: Viper
-- **容器化**: Docker + Docker Compose
-
-### 监控运维
-- **监控**: Prometheus + Grafana
-- **日志**: 结构化日志 (JSON格式)
-- **链路追踪**: OpenTelemetry
-- **健康检查**: 内置健康检查端点
-
-## 📊 性能指标
-
-| 指标 | 原Python版本 | Go版本 | 提升比例 |
-|------|-------------|--------|----------|
-| 启动时间 | ~8-12秒 | ~1-2秒 | **5-6x** |
-| 内存占用 | ~200-300MB | ~50-100MB | **2-3x** |
-| 并发处理 | ~100 req/s | ~1000+ req/s | **10x+** |
-| CPU使用率 | 高负载下60-80% | 高负载下20-30% | **2-3x** |
-
-## 🔄 迁移状态
-
-### ✅ 已完成
-- [x] 基础架构搭建
-- [x] 用户系统迁移
-- [x] 监控系统集成
-- [x] Docker 容器化
-- [x] CI/CD 流水线
-
-### 🚧 进行中
-- [ ] 插件系统重构
-- [ ] 媒体管理功能
-- [ ] 订阅系统迁移
-
-### 📋 待开始
-- [ ] 搜索功能优化
-- [ ] 通知系统迁移
-- [ ] 性能基准测试
-
-## 🤝 贡献指南
-
-1. Fork 项目
-2. 创建特性分支：`git checkout -b feature/amazing-feature`
-3. 提交更改：`git commit -m 'Add amazing feature'`
-4. 推送分支：`git push origin feature/amazing-feature`
-5. 提交 Pull Request
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 📞 联系方式
-
-- 项目主页: https://github.com/yfh-yun/moviepilot-go
-- 问题反馈: https://github.com/yfh-yun/moviepilot-go/issues
-- 文档站点: https://docs.moviepilot-go.com
+> 本目录包含从 Python MoviePilot 到 Go moviepilot-go 的完整迁移设计文档。
 
 ---
 
-**注意**: 本项目正在积极开发中，部分功能可能不稳定。建议在生产环境使用前进行充分测试。
+## 📚 文档列表
+
+### 核心文档
+
+1. **[migration-overview.md](./migration-overview.md)** - 迁移总览
+   - 整体架构对比
+   - 分层设计原则
+   - 迁移路线图
+   - 技术栈对比
+
+2. **[core-migration-app-core.md](./core-migration-app-core.md)** - app/core 模块迁移
+   - 配置管理（config.py）
+   - 上下文管理（context.py）
+   - 事件总线（event.py）
+   - 缓存系统（cache.py）
+   - 安全模块（security.py）
+
+### 启动与调度
+
+3. **[startup-migration.md](./startup-migration.md)** - 启动初始化
+   - Bootstrap 流程设计
+   - 组件初始化顺序
+   - 优雅关闭机制
+
+4. **[scheduler-migration.md](./scheduler-migration.md)** - 定时任务
+   - 调度器设计
+   - 内建任务迁移
+   - 插件任务注册
+   - Cron 表达式支持
+
+### 业务层
+
+5. **[chain-migration.md](./chain-migration.md)** - 业务处理链
+   - Service 层设计
+   - 依赖注入
+   - 工作流编排
+   - 事件驱动
+
+### 数据层
+
+6. **[db-migration.md](./db-migration.md)** - 数据库层
+   - GORM 模型定义
+   - Repository 模式
+   - 事务管理
+   - 数据库迁移
+
+### 其他模块
+
+7. **[remaining-modules-migration.md](./remaining-modules-migration.md)** - 其余模块快速索引
+   - command.py - 命令管理
+   - factory.py - 应用工厂
+   - log.py - 日志系统
+   - monitor.py - 文件监控
+   - main.py - 应用入口
+   - schemas/ - 数据模型
+   - api/ - API 层
+   - helper/ - 辅助工具
+   - modules/ - 外部服务模块
+   - plugins/ - 插件系统
+   - actions/ - 动作处理
+
+---
+
+## 🗂️ 文档状态
+
+| 文档 | 状态 | 完成度 |
+|------|------|--------|
+| migration-overview.md | ✅ 完成 | 100% |
+| core-migration-app-core.md | ✅ 完成 | 100% |
+| startup-migration.md | ✅ 完成 | 100% |
+| scheduler-migration.md | ✅ 完成 | 100% |
+| chain-migration.md | ✅ 完成 | 100% |
+| db-migration.md | ✅ 完成 | 100% |
+| remaining-modules-migration.md | ✅ 完成 | 80% |
+| api-migration.md | 📝 待创建 | 0% |
+| schemas-migration.md | 📝 待创建 | 0% |
+| helper-migration.md | 📝 待创建 | 0% |
+| modules-migration.md | 📝 待创建 | 0% |
+| plugins-migration.md | 📝 待创建 | 0% |
+| command-migration.md | 📝 待创建 | 0% |
+| factory-migration.md | 📝 待创建 | 0% |
+| log-migration.md | 📝 待创建 | 0% |
+| monitor-migration.md | 📝 待创建 | 0% |
+| main-migration.md | 📝 待创建 | 0% |
+
+---
+
+## 📖 阅读顺序建议
+
+### 新手入门
+1. [migration-overview.md](./migration-overview.md) - 了解整体架构
+2. [core-migration-app-core.md](./core-migration-app-core.md) - 理解核心模块
+3. [startup-migration.md](./startup-migration.md) - 学习启动流程
+
+### 开发者
+1. [chain-migration.md](./chain-migration.md) - 业务层设计
+2. [db-migration.md](./db-migration.md) - 数据层设计
+3. [scheduler-migration.md](./scheduler-migration.md) - 定时任务设计
+
+### 架构师
+1. [migration-overview.md](./migration-overview.md) - 整体架构
+2. 所有核心文档 - 深入理解各模块
+
+---
+
+## 🎯 迁移路线图
+
+### Phase 1: 基础架构（Week 1-3）
+- [x] 项目骨架
+- [x] 日志系统 (`pkg/logger/`)
+- [x] 系统工具 (`pkg/utils/system.go`)
+- [x] 监控采集器 (`internal/monitor/metrics/`)
+- [ ] 配置系统完善
+- [ ] 缓存系统
+- [ ] 数据库迁移
+
+### Phase 2: 核心功能（Week 4-8）
+- [ ] 用户认证与授权
+- [ ] 站点管理
+- [ ] 订阅系统
+- [ ] 下载管理
+- [ ] 文件整理（transfer）
+
+### Phase 3: 插件与扩展（Week 9-11）
+- [ ] 插件系统重构（Go + Python gRPC）
+- [ ] 工作流引擎
+- [ ] 消息通知
+
+### Phase 4: 优化与部署（Week 12-15）
+- [ ] 性能优化
+- [ ] 监控与告警（Prometheus + Grafana）
+- [ ] CI/CD 自动化
+- [ ] 文档完善
+
+---
+
+## 🔗 相关资源
+
+### 代码仓库
+- **Go 主应用**：`/workspaces/moviepilot/moviepilot-go-project/moviepilot-go/`
+- **Python 原版**：`/workspaces/moviepilot/MoviePilot-2.8.1-1/`
+
+### 技术栈文档
+- [Gin Web Framework](https://gin-gonic.com/)
+- [GORM](https://gorm.io/)
+- [Zap Logger](https://github.com/uber-go/zap)
+- [Viper Config](https://github.com/spf13/viper)
+- [Cron](https://github.com/robfig/cron)
+
+### 设计模式
+- [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [Domain-Driven Design](https://martinfowler.com/bliki/DomainDrivenDesign.html)
+- [Repository Pattern](https://martinfowler.com/eaaCatalog/repository.html)
+
+---
+
+## 📝 文档维护
+
+### 更新规则
+- 每完成一个模块迁移，更新对应文档状态
+- 记录遇到的问题与解决方案
+- 补充代码示例和最佳实践
+
+### 贡献指南
+1. 创建新文档时，遵循现有文档格式
+2. 使用清晰的标题和章节结构
+3. 提供代码示例和对比
+4. 更新本 README 的文档列表
+
+---
+
+## ❓ FAQ
+
+### Q: 为什么选择 Go 而不是继续用 Python？
+A: Go 提供更好的性能、并发支持和部署便利性，适合长期运行的服务。
+
+### Q: 是否完全抛弃 Python？
+A: 不是。插件系统仍支持 Python，通过 gRPC 与 Go 主应用通信。
+
+### Q: 迁移过程中如何保证兼容性？
+A: API 接口、数据库 schema、配置文件格式保持与 Python 版本兼容。
+
+### Q: 预计迁移周期多长？
+A: 完整迁移预计 12-15 周，分 4 个阶段进行。
+
+---
+
+**最后更新**：2025-11-26  
+**维护者**：MoviePilot Go 迁移团队

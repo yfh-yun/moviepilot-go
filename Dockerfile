@@ -1,11 +1,16 @@
 # 多阶段构建
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # 设置工作目录
 WORKDIR /app
 
-# 安装必要的包
-RUN apk add --no-cache git ca-certificates tzdata
+# 安装必要的包（包含构建 CGO 所需工具）
+RUN apk add --no-cache git ca-certificates tzdata build-base
+
+# 设置Go代理（使用国内镜像源）
+ENV GOPROXY=https://goproxy.cn,https://mirrors.aliyun.com/goproxy/,https://goproxy.io,direct
+ENV GO111MODULE=on
+ENV GOSUMDB=off
 
 # 复制go mod文件
 COPY go.mod go.sum ./
@@ -13,11 +18,11 @@ COPY go.mod go.sum ./
 # 下载依赖
 RUN go mod download
 
-# 复制源代码
+# 复制源代码（包含预生成的 docs）
 COPY . .
 
-# 构建应用
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main cmd/server/main.go
+# 构建应用（启用 CGO，支持 go-sqlite3）
+RUN go build -o main ./cmd/server
 
 # 最终镜像
 FROM alpine:latest
