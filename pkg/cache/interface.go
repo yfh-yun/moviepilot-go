@@ -32,13 +32,111 @@ type Backend interface {
 	// region为空时清空所有区域
 	Clear(region string) error
 
+	// Items 获取指定区域的所有缓存项
+	Items(region string) (map[string]any, error)
+
+	// Keys 获取指定区域的所有缓存键
+	Keys(region string) ([]string, error)
+
+	// Values 获取指定区域的所有缓存值
+	Values(region string) ([]any, error)
+
+	// Update 更新缓存，类似dict.update()
+	Update(region string, other map[string]any, ttlSeconds int64) error
+
+	// Pop 弹出缓存项，类似dict.pop()
+	// 如果key不存在且提供了default，则返回default
+	// 如果key不存在且未提供default，则返回nil
+	Pop(region, key string, defaultValue ...any) (any, error)
+
+	// Popitem 弹出最后一个缓存项，类似dict.popitem()
+	// 如果缓存为空，返回error
+	Popitem(region string) (string, any, error)
+
+	// Setdefault 设置默认值，类似dict.setdefault()
+	// 如果key不存在，则设置并返回default
+	// 如果key存在，则返回现有值
+	Setdefault(region, key string, defaultValue any, ttlSeconds int64) (any, error)
+
 	// Close 关闭缓存连接
 	Close() error
+
+	// GetItem 获取缓存项，类似dict[key]
+	GetItem(region, key string, dest any) (any, error)
+
+	// SetItem 设置缓存项，类似dict[key] = value
+	SetItem(region, key string, value any) error
+
+	// DeleteItem 删除缓存项，类似del dict[key]
+	DeleteItem(region, key string) error
+
+	// Contains 检查键是否存在，类似key in dict
+	Contains(region, key string) (bool, error)
+
+	// Iter 返回缓存的迭代器，类似iter(dict)
+	Iter(region string) ([]string, error)
+
+	// Len 返回缓存项的数量，类似len(dict)
+	Len(region string) (int, error)
+
+	// GetRegion 获取缓存区域，原Python: get_region()
+	GetRegion(region string) string
+
+	// IsRedis 判断当前缓存后端是否为Redis，原Python: is_redis()
+	IsRedis() bool
 }
 
-// Cache 缓存接口（用于服务层）
+// AsyncBackend 异步缓存后端接口
+// 原Python: AsyncCacheBackend in app/core/cache.py
+type AsyncBackend interface {
+	// AsyncSet 异步设置缓存
+	AsyncSet(region, key string, value any, ttlSeconds int64) chan error
+
+	// AsyncGet 异步获取缓存
+	// 返回值: (是否命中, 错误, 缓存值)
+	AsyncGet(region, key string, dest any) chan [3]any
+
+	// AsyncExists 异步检查缓存是否存在
+	AsyncExists(region, key string) chan [2]any
+
+	// AsyncDelete 异步删除缓存
+	AsyncDelete(region, key string) chan error
+
+	// AsyncClear 异步清空缓存
+	// region为空时清空所有区域
+	AsyncClear(region string) chan error
+
+	// AsyncItems 异步获取指定区域的所有缓存项
+	AsyncItems(region string) chan [2]any
+
+	// AsyncKeys 异步获取指定区域的所有缓存键
+	AsyncKeys(region string) chan [2]any
+
+	// AsyncValues 异步获取指定区域的所有缓存值
+	AsyncValues(region string) chan [2]any
+
+	// AsyncUpdate 异步更新缓存，类似dict.update()
+	AsyncUpdate(region string, other map[string]any, ttlSeconds int64) chan error
+
+	// AsyncPop 异步弹出缓存项，类似dict.pop()
+	// 返回值: (缓存值, 错误)
+	AsyncPop(region, key string, defaultValue ...any) chan [2]any
+
+	// AsyncPopitem 异步弹出最后一个缓存项，类似dict.popitem()
+	// 返回值: (缓存键, 缓存值, 错误)
+	AsyncPopitem(region string) chan [3]any
+
+	// AsyncSetdefault 异步设置默认值，类似dict.setdefault()
+	// 返回值: (缓存值, 错误)
+	AsyncSetdefault(region, key string, defaultValue any, ttlSeconds int64) chan [2]any
+
+	// AsyncClose 异步关闭缓存连接
+	AsyncClose() chan error
+}
+
+// ServiceCache 服务层缓存接口
 // 原Python: 对应服务层使用的缓存接口
-type Cache interface {
+type ServiceCache interface {
 	// GetJSON 获取JSON格式缓存
 	GetJSON(ctx context.Context, key string, dest any) error
 

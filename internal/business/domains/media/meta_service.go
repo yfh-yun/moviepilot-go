@@ -2,9 +2,12 @@ package media
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"moviepilot-go/pkg/cache"
 )
 
 // MetaInfoResult 内嵌元信息解析结果
@@ -34,6 +37,8 @@ type metaService struct {
 	releaseMatcher     *ReleaseGroupsMatcher
 	customizationMatch *CustomizationMatcher
 	streamingPlatforms *StreamingPlatforms
+	cache              cache.Backend
+	cacheTTL           int64
 }
 
 // NewMetaService 创建新的MetaService实例
@@ -43,11 +48,25 @@ func NewMetaService(deps MetaParserDeps) MetaService {
 		releaseMatcher:     deps.ReleaseMatcher,
 		customizationMatch: deps.CustomizationMatch,
 		streamingPlatforms: deps.StreamingPlatforms,
+		cache:              deps.Cache,
+		cacheTTL:           24 * 3600, // 默认缓存24小时
 	}
 }
 
 // MetaInfo 解析标题/种子名/文件名，返回MetaBase子类
 func (ms *metaService) MetaInfo(ctx context.Context, title, subtitle string, isFile bool, customWords []string) (*MetaBase, error) {
+	// 生成缓存键
+	cacheKey := ms.generateCacheKey("meta_info", title, subtitle, isFile, customWords)
+
+	// 检查缓存是否存在
+	if ms.cache != nil {
+		var cachedMeta MetaBase
+		hit, err := ms.cache.Get("meta_info", cacheKey, &cachedMeta)
+		if err == nil && hit {
+			return &cachedMeta, nil
+		}
+	}
+
 	// 1. 记录原标题
 	origTitle := title
 
@@ -82,7 +101,8 @@ func (ms *metaService) MetaInfo(ctx context.Context, title, subtitle string, isF
 	metaObj.AppliedWords = applyWords
 
 	if metainfo.TMDBID != 0 {
-		metaObj.TMDBID = metainfo.TMDBID
+		tmdbid := metainfo.TMDBID
+		metaObj.TMDBID = &tmdbid
 	}
 	if metainfo.DoubanID != "" {
 		metaObj.DoubanID = metainfo.DoubanID
@@ -91,38 +111,109 @@ func (ms *metaService) MetaInfo(ctx context.Context, title, subtitle string, isF
 		metaObj.Type = metainfo.Type
 	}
 	if metainfo.BeginSeason != nil {
-		metaObj.BeginSeason = *metainfo.BeginSeason
+		beginSeason := *metainfo.BeginSeason
+		metaObj.BeginSeason = &beginSeason
 	}
 	if metainfo.EndSeason != nil {
-		metaObj.EndSeason = *metainfo.EndSeason
+		endSeason := *metainfo.EndSeason
+		metaObj.EndSeason = &endSeason
 	}
 	if metainfo.TotalSeason != nil {
 		metaObj.TotalSeason = *metainfo.TotalSeason
 	}
 	if metainfo.BeginEpisode != nil {
-		metaObj.BeginEpisode = *metainfo.BeginEpisode
+		beginEpisode := *metainfo.BeginEpisode
+		metaObj.BeginEpisode = &beginEpisode
 	}
 	if metainfo.EndEpisode != nil {
-		metaObj.EndEpisode = *metainfo.EndEpisode
+		endEpisode := *metainfo.EndEpisode
+		metaObj.EndEpisode = &endEpisode
 	}
 	if metainfo.TotalEpisode != nil {
 		metaObj.TotalEpisode = *metainfo.TotalEpisode
 	}
 
+	// 存入缓存
+	if ms.cache != nil {
+		ms.cache.Set("meta_info", cacheKey, metaObj, ms.cacheTTL)
+	}
+
 	return metaObj, nil
 }
 
-// MetaInfoPath 根据完整路径推导元信息
+// MetaInfoPath 根据完整路径推导元信息，合并文件、目录和父目录的元信息
 func (ms *metaService) MetaInfoPath(ctx context.Context, path string) (*MetaBase, error) {
-	// 简化实现，后续可以扩展
-	// 这里只取文件名作为标题
+	// 生成缓存键
+	cacheKey := ms.generateCacheKey("meta_info_path", path)
+
+	// 检查缓存是否存在
+	if ms.cache != nil {
+		var cachedMeta MetaBase
+		hit, err := ms.cache.Get("meta_info_path", cacheKey, &cachedMeta)
+		if err == nil && hit {
+			return &cachedMeta, nil
+		}
+	}
+
+	// 1. 解析路径，获取所有路径组件
+	var fileMeta, dirMeta, rootMeta *MetaBase
+	var err error
+
+	// 2. 解析文件名元信息
 	fileName := path
 	if strings.Contains(path, "/") {
 		parts := strings.Split(path, "/")
 		fileName = parts[len(parts)-1]
 	}
 
-	return ms.MetaInfo(ctx, fileName, "", true, nil)
+	fileMeta, err = ms.MetaInfo(ctx, fileName, "", true, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. 解析目录名元信息
+	dirPath := path
+	if strings.Contains(path, "/") {
+		parts := strings.Split(path, "/")
+		dirPath = strings.Join(parts[:len(parts)-1], "/")
+		if dirPath != "" {
+			dirName := dirPath
+			if strings.Contains(dirPath, "/") {
+				parts := strings.Split(dirPath, "/")
+				dirName = parts[len(parts)-1]
+			}
+			dirMeta, _ = ms.MetaInfo(ctx, dirName, "", false, nil)
+			// 合并目录元信息到文件元信息
+			if dirMeta != nil {
+				fileMeta.Merge(dirMeta)
+			}
+		}
+	}
+
+	// 4. 解析父目录名元信息
+	if strings.Contains(dirPath, "/") {
+		rootParts := strings.Split(dirPath, "/")
+		if len(rootParts) > 1 {
+			rootDir := strings.Join(rootParts[:len(rootParts)-1], "/")
+			rootName := rootDir
+			if strings.Contains(rootDir, "/") {
+				parts := strings.Split(rootDir, "/")
+				rootName = parts[len(parts)-1]
+			}
+			rootMeta, _ = ms.MetaInfo(ctx, rootName, "", false, nil)
+			// 合并父目录元信息到文件元信息
+			if rootMeta != nil {
+				fileMeta.Merge(rootMeta)
+			}
+		}
+	}
+
+	// 存入缓存
+	if ms.cache != nil {
+		ms.cache.Set("meta_info_path", cacheKey, fileMeta, ms.cacheTTL)
+	}
+
+	return fileMeta, nil
 }
 
 // IsAnime 判断一个名称是否更像“动漫（番剧）”而不是普通电影/剧集
@@ -291,5 +382,39 @@ func (ms *metaService) calculateTotal(result *MetaInfoResult) {
 	} else if result.BeginEpisode != nil {
 		one := 1
 		result.TotalEpisode = &one
+	}
+}
+
+// generateCacheKey 生成缓存键，根据不同的参数生成唯一的字符串
+func (ms *metaService) generateCacheKey(prefix string, params ...interface{}) string {
+	keyParts := []string{prefix}
+	for _, param := range params {
+		keyParts = append(keyParts, ms.stringifyParam(param))
+	}
+	return strings.Join(keyParts, ":")
+}
+
+// stringifyParam 将参数转换为字符串，用于生成缓存键
+func (ms *metaService) stringifyParam(param interface{}) string {
+	switch v := param.(type) {
+	case string:
+		return v
+	case bool:
+		return strconv.FormatBool(v)
+	case int:
+		return strconv.Itoa(v)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case []string:
+		return strings.Join(v, ",")
+	case []interface{}:
+		parts := make([]string, len(v))
+		for i, item := range v {
+			parts[i] = ms.stringifyParam(item)
+		}
+		return strings.Join(parts, ",")
+	default:
+		// 对于其他类型，使用fmt.Sprintf转换
+		return fmt.Sprintf("%v", v)
 	}
 }

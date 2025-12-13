@@ -45,13 +45,13 @@ func (l *Loader) Load() (*Config, error) {
 		return nil, err
 	}
 
-	// 5. 校验配置
+	// 5. 初始化动态属性（先初始化，再校验）
+	cfg.initPaths()
+
+	// 6. 校验配置
 	if err := l.validate(cfg); err != nil {
 		return nil, err
 	}
-
-	// 6. 初始化动态属性
-	cfg.initPaths()
 
 	l.logger.Info("configuration loaded successfully")
 	return cfg, nil
@@ -177,6 +177,44 @@ func (l *Loader) setDefaults(v *viper.Viper) {
 	v.SetDefault("SUBSCRIBE_CHECK_INTERVAL", 300)
 	v.SetDefault("SUBSCRIBE_MAX_CONCURRENT_CHECKS", 5)
 	v.SetDefault("SUBSCRIBE_NOTIFICATION_ENABLED", true)
+
+	// TVDB配置
+	v.SetDefault("TVDB_V4_API_KEY", "ed2aa66b-7899-4677-92a7-67bc9ce3d93a")
+	v.SetDefault("TVDB_V4_API_PIN", "")
+
+	// Fanart配置
+	v.SetDefault("FANART_ENABLE", true)
+	v.SetDefault("FANART_LANG", "zh,en")
+	v.SetDefault("FANART_API_KEY", "d2d31f9ecabea050fc7d68aa3146015f")
+
+	// 云盘配置
+	v.SetDefault("U115_APP_ID", "100196807")
+	v.SetDefault("ALIPAN_APP_ID", "ac1bf04dc9fd4d9aaabb65b4a668d403")
+
+	// 系统升级配置
+	v.SetDefault("MOVIEPILOT_AUTO_UPDATE", "release")
+	v.SetDefault("AUTO_UPDATE_RESOURCE", true)
+
+	// 媒体配置扩展
+	v.SetDefault("SCRAP_SOURCE", "themoviedb")
+	v.SetDefault("MOVIE_RENAME_FORMAT", "{{title}}{% if year %} ({{year}}){% endif %}/{{title}}{% if year %} ({{year}}){% endif %}{% if part %}-{{part}}{% endif %}{% if videoFormat %} - {{videoFormat}}{% endif %}{{fileExt}}")
+	v.SetDefault("TV_RENAME_FORMAT", "{{title}}{% if year %} ({{year}}){% endif %}/Season {{season}}/{{title}} - {{season_episode}}{% if part %}-{{part}}{% endif %}{% if episode %} - 第 {{episode}} 集{% endif %}{{fileExt}}")
+	v.SetDefault("RENAME_FORMAT_S0_NAMES", []string{"Specials", "SPs"})
+	v.SetDefault("DEFAULT_SUB", "zh-cn")
+	v.SetDefault("SCRAP_FOLLOW_TMDB", true)
+
+	// 个性化配置
+	v.SetDefault("WALLPAPER", "tmdb")
+
+	// 工作流配置
+	v.SetDefault("WORKFLOW_STATISTIC_SHARE", true)
+
+	// 存储配置
+	v.SetDefault("RCLONE_SNAPSHOT_CHECK_FOLDER_MODTIME", true)
+	v.SetDefault("OPENLIST_SNAPSHOT_CHECK_FOLDER_MODTIME", true)
+
+	// Docker配置
+	v.SetDefault("DOCKER_CLIENT_API", "tcp://127.0.0.1:38379")
 }
 
 // unmarshal 解析配置到结构体
@@ -188,6 +226,9 @@ func (l *Loader) unmarshal(v *viper.Viper, cfg *Config) error {
 	cfg.Security = &models.SecurityConfig{}
 	cfg.Media = &models.MediaConfig{}
 	cfg.TMDB = &models.TMDBConfig{}
+	cfg.TVDB = &models.TVDBConfig{}
+	cfg.Fanart = &models.FanartConfig{}
+	cfg.Cloud = &models.CloudConfig{}
 	cfg.Site = &models.SiteConfig{}
 	cfg.Download = &models.DownloadConfig{}
 	cfg.CookieCloud = &models.CookieCloudConfig{}
@@ -197,6 +238,13 @@ func (l *Loader) unmarshal(v *viper.Viper, cfg *Config) error {
 	cfg.Scheduler = &models.SchedulerConfig{}
 	cfg.Subscribe = &models.SubscribeConfig{}
 	cfg.Network = &models.NetworkConfig{}
+	cfg.Update = &models.UpdateConfig{}
+	cfg.MediaFormat = &models.MediaFormatConfig{}
+	cfg.Search = &models.SearchConfig{}
+	cfg.Personalization = &models.PersonalizationConfig{}
+	cfg.Workflow = &models.WorkflowConfig{}
+	cfg.Storage = &models.StorageConfig{}
+	cfg.Docker = &models.DockerConfig{}
 
 	// 解析各配置结构体
 	if err := v.Unmarshal(&cfg.App); err != nil {
@@ -221,6 +269,18 @@ func (l *Loader) unmarshal(v *viper.Viper, cfg *Config) error {
 
 	if err := v.Unmarshal(&cfg.TMDB); err != nil {
 		return fmt.Errorf("failed to unmarshal tmdb config: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg.TVDB); err != nil {
+		return fmt.Errorf("failed to unmarshal tvdb config: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg.Fanart); err != nil {
+		return fmt.Errorf("failed to unmarshal fanart config: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg.Cloud); err != nil {
+		return fmt.Errorf("failed to unmarshal cloud config: %w", err)
 	}
 
 	if err := v.Unmarshal(&cfg.Site); err != nil {
@@ -259,12 +319,63 @@ func (l *Loader) unmarshal(v *viper.Viper, cfg *Config) error {
 		return fmt.Errorf("failed to unmarshal network config: %w", err)
 	}
 
+	if err := v.Unmarshal(&cfg.Update); err != nil {
+		return fmt.Errorf("failed to unmarshal update config: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg.MediaFormat); err != nil {
+		return fmt.Errorf("failed to unmarshal media format config: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg.Search); err != nil {
+		return fmt.Errorf("failed to unmarshal search config: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg.Personalization); err != nil {
+		return fmt.Errorf("failed to unmarshal personalization config: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg.Workflow); err != nil {
+		return fmt.Errorf("failed to unmarshal workflow config: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg.Storage); err != nil {
+		return fmt.Errorf("failed to unmarshal storage config: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg.Docker); err != nil {
+		return fmt.Errorf("failed to unmarshal docker config: %w", err)
+	}
+
 	return nil
 }
 
 // validate 校验配置
 func (l *Loader) validate(cfg *Config) error {
-	// 这里可以添加配置校验逻辑
-	// 例如：检查必填项、校验格式等
+	// 数据库配置校验
+	if cfg.Database.Type != "sqlite" && cfg.Database.Type != "postgresql" && cfg.Database.Type != "postgres" {
+		return fmt.Errorf("unsupported database type: %s", cfg.Database.Type)
+	}
+
+	// 缓存配置校验
+	if cfg.Cache.BackendType != "cachetools" && cfg.Cache.BackendType != "redis" && cfg.Cache.BackendType != "file" {
+		return fmt.Errorf("unsupported cache backend type: %s", cfg.Cache.BackendType)
+	}
+
+	// 端口配置校验
+	if cfg.App.Port <= 0 || cfg.App.Port > 65535 {
+		return fmt.Errorf("invalid port: %d", cfg.App.Port)
+	}
+
+	// TMDB语言配置校验
+	if cfg.TMDB.Language == "" {
+		return fmt.Errorf("TMDB language cannot be empty")
+	}
+
+	// 确保配置目录存在
+	if err := os.MkdirAll(cfg.GetConfigPath(), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
 	return nil
 }

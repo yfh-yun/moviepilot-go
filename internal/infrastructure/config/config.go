@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,21 +28,31 @@ type Config struct {
 	mu sync.RWMutex // 读写锁，支持运行时更新
 
 	// 各分类配置（组合模式）
-	App         *models.AppConfig
-	Database    *models.DatabaseConfig
-	Cache       *models.CacheConfig
-	Security    *models.SecurityConfig
-	Media       *models.MediaConfig
-	TMDB        *models.TMDBConfig
-	Site        *models.SiteConfig
-	Download    *models.DownloadConfig
-	CookieCloud *models.CookieCloudConfig
-	Transfer    *models.TransferConfig
-	Plugin      *models.PluginConfig
-	Performance *models.PerformanceConfig
-	Scheduler   *models.SchedulerConfig
-	Subscribe   *models.SubscribeConfig
-	Network     *models.NetworkConfig
+	App             *models.AppConfig
+	Database        *models.DatabaseConfig
+	Cache           *models.CacheConfig
+	Security        *models.SecurityConfig
+	Media           *models.MediaConfig
+	TMDB            *models.TMDBConfig
+	TVDB            *models.TVDBConfig
+	Fanart          *models.FanartConfig
+	Cloud           *models.CloudConfig
+	Site            *models.SiteConfig
+	Download        *models.DownloadConfig
+	CookieCloud     *models.CookieCloudConfig
+	Transfer        *models.TransferConfig
+	Plugin          *models.PluginConfig
+	Performance     *models.PerformanceConfig
+	Scheduler       *models.SchedulerConfig
+	Subscribe       *models.SubscribeConfig
+	Network         *models.NetworkConfig
+	Update          *models.UpdateConfig
+	MediaFormat     *models.MediaFormatConfig
+	Search          *models.SearchConfig
+	Personalization *models.PersonalizationConfig
+	Workflow        *models.WorkflowConfig
+	Storage         *models.StorageConfig
+	Docker          *models.DockerConfig
 
 	// 动态计算属性（通过方法实现）
 	paths *PathConfig // 内部字段
@@ -260,3 +272,119 @@ func isFrozen() bool {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || (len(s) > len(substr) && (s[:len(substr)] == substr || contains(s[1:], substr))))
 }
+
+// GetRootPath 获取应用根路径
+func (c *Config) GetRootPath() string {
+	return c.paths.Root
+}
+
+// USER_AGENT 生成全局用户代理字符串
+func (c *Config) USER_AGENT() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// TODO: 实现获取系统信息和版本的逻辑
+	// 暂时返回一个固定的用户代理
+	return "MoviePilot/2.0 (Linux; amd64)"
+}
+
+// NORMAL_USER_AGENT 返回默认浏览器用户代理
+func (c *Config) NORMAL_USER_AGENT() string {
+	return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+}
+
+// VERSION_FLAG 返回版本标识
+func (c *Config) VERSION_FLAG() string {
+	return "v2"
+}
+
+// PROXY_SERVER 解析并返回代理服务器配置
+func (c *Config) PROXY_SERVER() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.Network.ProxyHost == "" {
+		return nil
+	}
+
+	proxy := map[string]string{
+		"server": c.Network.ProxyHost,
+	}
+
+	if c.Network.ProxyUsername != "" {
+		proxy["username"] = c.Network.ProxyUsername
+	}
+
+	if c.Network.ProxyPassword != "" {
+		proxy["password"] = c.Network.ProxyPassword
+	}
+
+	return proxy
+}
+
+// GITHUB_HEADERS 返回Github请求头
+func (c *Config) GITHUB_HEADERS() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// TODO: 实现获取Github Token的逻辑
+	return map[string]string{
+		"User-Agent": c.NORMAL_USER_AGENT(),
+	}
+}
+
+// REPO_GITHUB_HEADERS 返回指定仓库的Github请求头
+func (c *Config) REPO_GITHUB_HEADERS(repo string) map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// TODO: 实现根据仓库名获取特定Github Token的逻辑
+	return c.GITHUB_HEADERS()
+}
+
+// VAPID 返回VAPID配置
+func (c *Config) VAPID() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return map[string]string{
+		"subject":    "mailto:" + c.Security.SuperUser + "@movie-pilot.org",
+		"publicKey":  "BH3w49sZA6jXUnE-yt4jO6VKh73lsdsvwoJ6Hx7fmPIDKoqGiUl2GEoZzy-iJfn4SfQQcx7yQdHf9RknwrL_lSM",
+		"privateKey": "JTixnYY0vEw97t9uukfO3UWKfHKJdT5kCQDiv3gu894",
+	}
+}
+
+// MP_DOMAIN 组合并返回完整域名
+func (c *Config) MP_DOMAIN(url string) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.App.AppDomain == "" {
+		return ""
+	}
+
+	// TODO: 实现URL组合逻辑
+	return c.App.AppDomain + url
+}
+
+// RENAME_FORMAT 获取指定类型的重命名格式
+func (c *Config) RENAME_FORMAT(mediaType string) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	var renameFormat string
+	if mediaType == "tv" {
+		renameFormat = c.Media.TVRenameFormat
+	} else {
+		renameFormat = c.Media.MovieRenameFormat
+	}
+
+	// 规范重命名格式
+	renameFormat = strings.ReplaceAll(renameFormat, "\\", "/")
+	renameFormat = regexp.MustCompile(`/+`).ReplaceAllString(renameFormat, "/")
+	renameFormat = strings.TrimSuffix(renameFormat, "/")
+
+	return renameFormat
+}
+
+

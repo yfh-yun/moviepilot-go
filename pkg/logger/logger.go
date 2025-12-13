@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -26,7 +28,197 @@ var (
 
 	// 环境变量前缀
 	envPrefix = "LOGGER_"
+
+	// loggerManager 全局日志管理器实例
+	loggerManager *LoggerManager
+	// 初始化锁
+	initOnce sync.Once
 )
+
+// LoggerManager 日志管理器，用于管理不同类型的日志记录器
+type LoggerManager struct {
+	mu             sync.RWMutex
+	loggers        map[string]*zap.Logger
+	sugarLoggers   map[string]*zap.SugaredLogger
+	fileHandlers   map[string]*lumberjack.Logger
+	defaultLogFile string
+	logPath        string
+	isInitialized  bool
+}
+
+// LogEntry 日志条目
+type LogEntry struct {
+	level     string
+	message   string
+	filePath  string
+	timestamp time.Time
+}
+
+// NewLoggerManager 创建日志管理器实例
+func NewLoggerManager() *LoggerManager {
+	return &LoggerManager{
+		loggers:        make(map[string]*zap.Logger),
+		sugarLoggers:   make(map[string]*zap.SugaredLogger),
+		fileHandlers:   make(map[string]*lumberjack.Logger),
+		defaultLogFile: "moviepilot.log",
+		logPath:        getEnvOrDefault(envPrefix+"PATH", "/var/log/moviepilot"),
+	}
+}
+
+// GetLoggerManager 获取日志管理器实例（单例模式）
+func GetLoggerManager() *LoggerManager {
+	initOnce.Do(func() {
+		loggerManager = NewLoggerManager()
+	})
+	return loggerManager
+}
+
+// GetLogger 获取指定名称的日志记录器
+func (m *LoggerManager) GetLogger(name string) *zap.Logger {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if logger, exists := m.loggers[name]; exists {
+		return logger
+	}
+
+	m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 二次检查，避免并发问题
+	if logger, exists := m.loggers[name]; exists {
+		return logger
+	}
+
+	// 创建新的日志记录器
+	logger := m.createLogger(name)
+	m.loggers[name] = logger
+	m.sugarLoggers[name] = logger.Sugar()
+
+	return logger
+}
+
+// GetSugarLogger 获取指定名称的Sugar日志记录器
+func (m *LoggerManager) GetSugarLogger(name string) *zap.SugaredLogger {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if logger, exists := m.sugarLoggers[name]; exists {
+		return logger
+	}
+
+	// 如果不存在，先获取或创建普通日志记录器
+	logger := m.GetLogger(name)
+	return logger.Sugar()
+}
+
+// createLogger 创建新的日志记录器
+func (m *LoggerManager) createLogger(name string) *zap.Logger {
+	// 构建日志配置
+	logConfig := buildLogConfig()
+
+	// 设置日志文件名
+	logFile := m.defaultLogFile
+	if name != "" && name != "default" {
+		logFile = name + ".log"
+	}
+
+	// 设置输出路径
+	fullLogPath := filepath.Join(m.logPath, logFile)
+	logConfig.OutputPaths = []string{fullLogPath}
+	logConfig.ErrorOutputPaths = []string{fullLogPath}
+
+	// 创建目录
+	os.MkdirAll(m.logPath, 0755)
+
+	// 使用 lumberjack 进行日志轮转
+	fileWriter := &lumberjack.Logger{
+		Filename:   fullLogPath,
+		MaxSize:    getIntEnvOrDefault(envPrefix+"MAX_SIZE", 5),
+		MaxBackups: getIntEnvOrDefault(envPrefix+"MAX_BACKUPS", 10),
+		Compress:   getBoolEnvOrDefault(envPrefix+"COMPRESS", false),
+		LocalTime:  true,
+	}
+
+	m.fileHandlers[fullLogPath] = fileWriter
+
+	// 创建核心
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(logConfig.EncoderConfig),
+		zapcore.AddSync(fileWriter),
+		logConfig.Level,
+	)
+
+	// 添加控制台输出
+	consoleCore := zapcore.NewCore(
+		zapcore.NewConsoleEncoder(logConfig.EncoderConfig),
+		zapcore.AddSync(os.Stdout),
+		logConfig.Level,
+	)
+
+	// 合并核心
+	multiCore := zapcore.NewTee(core, consoleCore)
+
+	// 构建日志器
+	return zap.New(multiCore, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+}
+
+// Shutdown 关闭日志管理器，清理资源
+func (m *LoggerManager) Shutdown() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 关闭所有日志记录器
+	for _, logger := range m.loggers {
+		logger.Sync()
+	}
+
+	// 关闭所有文件处理器
+	for _, handler := range m.fileHandlers {
+		handler.Close()
+	}
+
+	// 清空映射
+	m.loggers = make(map[string]*zap.Logger)
+	m.sugarLoggers = make(map[string]*zap.SugaredLogger)
+	m.fileHandlers = make(map[string]*lumberjack.Logger)
+}
+
+// UpdateLoggers 更新所有日志记录器配置
+func (m *LoggerManager) UpdateLoggers() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 保存现有日志记录器的名称
+	loggerNames := make([]string, 0, len(m.loggers))
+	for name := range m.loggers {
+		loggerNames = append(loggerNames, name)
+	}
+
+	// 关闭并删除现有日志记录器
+	for _, name := range loggerNames {
+		m.loggers[name].Sync()
+		delete(m.loggers, name)
+		delete(m.sugarLoggers, name)
+	}
+
+	// 关闭并删除现有文件处理器
+	for path, handler := range m.fileHandlers {
+		handler.Close()
+		delete(m.fileHandlers, path)
+	}
+}
+
+// GetPluginLogger 获取插件日志记录器
+func (m *LoggerManager) GetPluginLogger(pluginName string) *zap.Logger {
+	return m.GetLogger("plugins/" + pluginName)
+}
+
+// GetPluginSugarLogger 获取插件Sugar日志记录器
+func (m *LoggerManager) GetPluginSugarLogger(pluginName string) *zap.SugaredLogger {
+	return m.GetSugarLogger("plugins/" + pluginName)
+}
 
 // contextKey 上下文键类型
 type contextKey string
@@ -87,6 +279,10 @@ func Init() error {
 
 	Logger = logger
 	Sugar = logger.Sugar()
+
+	// 初始化日志管理器
+	manager := GetLoggerManager()
+	manager.isInitialized = true
 
 	return nil
 }
@@ -382,6 +578,10 @@ func Sync() {
 	if Logger != nil {
 		Logger.Sync()
 	}
+
+	// 关闭日志管理器，释放资源
+	manager := GetLoggerManager()
+	manager.Shutdown()
 }
 
 // Debug 调试日志

@@ -180,6 +180,83 @@ func (r *DownloadHistoryRepositoryImpl) UpdateFileState(ctx context.Context, ful
 		Update("state", state).Error
 }
 
+// GetLastBy 根据tmdbid、season、season_episode查询下载记录
+// tmdbid + mtype 或 title + year
+func (r *DownloadHistoryRepositoryImpl) GetLastBy(ctx context.Context, mtype, title, year, season, episode *string, tmdbID *int) ([]*database.DownloadHistory, error) {
+	var histories []*database.DownloadHistory
+	query := r.db.WithContext(ctx).Model(&database.DownloadHistory{}).Order("id DESC")
+
+	// TMDBID + 类型
+	if tmdbID != nil && mtype != nil && *mtype != "" {
+		query = query.Where("tmdbid = ? AND type = ?", *tmdbID, *mtype)
+
+		// 电视剧某季某集
+		if season != nil && *season != "" && episode != nil && *episode != "" {
+			query = query.Where("seasons = ? AND episodes = ?", *season, *episode)
+			// 电视剧某季
+		} else if season != nil && *season != "" {
+			query = query.Where("seasons = ?", *season)
+		}
+		// 标题 + 年份
+	} else if title != nil && *title != "" && year != nil && *year != "" {
+		query = query.Where("title = ? AND year = ?", *title, *year)
+
+		// 电视剧某季某集
+		if season != nil && *season != "" && episode != nil && *episode != "" {
+			query = query.Where("seasons = ? AND episodes = ?", *season, *episode)
+			// 电视剧某季
+		} else if season != nil && *season != "" {
+			query = query.Where("seasons = ?", *season)
+		}
+	} else {
+		// 不满足条件，返回空列表
+		return []*database.DownloadHistory{}, nil
+	}
+
+	err := query.Find(&histories).Error
+	return histories, err
+}
+
+// ListByUserDate 查询某用户某时间之后的下载历史
+func (r *DownloadHistoryRepositoryImpl) ListByUserDate(ctx context.Context, date, username string) ([]*database.DownloadHistory, error) {
+	var histories []*database.DownloadHistory
+	query := r.db.WithContext(ctx).Model(&database.DownloadHistory{}).Order("id DESC")
+
+	query = query.Where("date < ?", date)
+	if username != "" {
+		query = query.Where("username = ?", username)
+	}
+
+	err := query.Find(&histories).Error
+	return histories, err
+}
+
+// ListByDate 查询某时间之后的下载历史
+func (r *DownloadHistoryRepositoryImpl) ListByDate(ctx context.Context, date, mtype string, tmdbID int, seasons *string) ([]*database.DownloadHistory, error) {
+	var histories []*database.DownloadHistory
+	query := r.db.WithContext(ctx).Model(&database.DownloadHistory{}).Order("id DESC")
+
+	query = query.Where("date > ? AND type = ? AND tmdbid = ?", date, mtype, tmdbID)
+	if seasons != nil && *seasons != "" {
+		query = query.Where("seasons = ?", *seasons)
+	}
+
+	err := query.Find(&histories).Error
+	return histories, err
+}
+
+// ListByType 根据类型和天数查询下载历史
+func (r *DownloadHistoryRepositoryImpl) ListByType(ctx context.Context, mtype string, days int) ([]*database.DownloadHistory, error) {
+	var histories []*database.DownloadHistory
+	query := r.db.WithContext(ctx).Model(&database.DownloadHistory{})
+
+	// 计算天数前的时间
+	query = query.Where("type = ? AND date >= DATE_SUB(NOW(), INTERVAL ? DAY)", mtype, days)
+
+	err := query.Find(&histories).Error
+	return histories, err
+}
+
 // TruncateFiles 清空下载文件表
 func (r *DownloadHistoryRepositoryImpl) TruncateFiles(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec("DELETE FROM downloadfiles").Error

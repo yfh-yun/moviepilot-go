@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -211,6 +212,9 @@ func (c *Config) setConfigValue(key string, value any) error {
 		{"SECURITY", c.Security},
 		{"MEDIA", c.Media},
 		{"TMDB", c.TMDB},
+		{"TVDB", c.TVDB},
+		{"FANART", c.Fanart},
+		{"CLOUD", c.Cloud},
 		{"SITE", c.Site},
 		{"DOWNLOAD", c.Download},
 		{"COOKIECLOUD", c.CookieCloud},
@@ -220,6 +224,13 @@ func (c *Config) setConfigValue(key string, value any) error {
 		{"SCHEDULER", c.Scheduler},
 		{"SUBSCRIBE", c.Subscribe},
 		{"NETWORK", c.Network},
+		{"UPDATE", c.Update},
+		{"MEDIAFORMAT", c.MediaFormat},
+		{"SEARCH", c.Search},
+		{"PERSONALIZATION", c.Personalization},
+		{"WORKFLOW", c.Workflow},
+		{"STORAGE", c.Storage},
+		{"DOCKER", c.Docker},
 	}
 
 	for _, field := range configFields {
@@ -288,6 +299,12 @@ func (c *Config) setStructField(ptr any, fieldName string, value any) error {
 // writeToEnvFile 写入配置到 .env 文件
 func (c *Config) writeToEnvFile(key string, value any) error {
 	envPath := c.getEnvPath()
+
+	// 确保配置目录存在
+	envDir := filepath.Dir(envPath)
+	if err := os.MkdirAll(envDir, 0755); err != nil {
+		return fmt.Errorf("failed to create env directory: %w", err)
+	}
 
 	// 读取现有 .env 文件
 	envMap, err := godotenv.Read(envPath)
@@ -468,6 +485,48 @@ func (c *Config) toMap() map[string]any {
 	configMap["SUBSCRIBE_CHECK_INTERVAL"] = 0
 	configMap["SUBSCRIBE_MAX_CONCURRENT_CHECKS"] = 0
 	configMap["SUBSCRIBE_NOTIFICATION_ENABLED"] = false
+
+	// TVDB配置
+	configMap["TVDB_V4_API_KEY"] = ""
+	configMap["TVDB_V4_API_PIN"] = ""
+
+	// Fanart配置
+	configMap["FANART_ENABLE"] = false
+	configMap["FANART_LANG"] = ""
+	configMap["FANART_API_KEY"] = ""
+
+	// 云盘配置
+	configMap["U115_APP_ID"] = ""
+	configMap["ALIPAN_APP_ID"] = ""
+
+	// 系统升级配置
+	configMap["MOVIEPILOT_AUTO_UPDATE"] = ""
+	configMap["AUTO_UPDATE_RESOURCE"] = false
+
+	// 媒体文件格式配置
+	configMap["RMT_MEDIAEXT"] = []string{}
+	configMap["RMT_SUBEXT"] = []string{}
+	configMap["RMT_AUDIO_TRACK_EXT"] = []string{}
+	configMap["RMT_AUDIOEXT"] = []string{}
+	configMap["DOWNLOAD_TMPEXT"] = []string{}
+
+	// 搜索配置
+	configMap["SEARCH_MULTIPLE_NAME"] = false
+	configMap["MAX_SEARCH_NAME_LIMIT"] = 0
+
+	// 个性化配置
+	configMap["WALLPAPER"] = ""
+	configMap["CUSTOMIZE_WALLPAPER_API_URL"] = ""
+
+	// 工作流配置
+	configMap["WORKFLOW_STATISTIC_SHARE"] = false
+
+	// 存储配置
+	configMap["RCLONE_SNAPSHOT_CHECK_FOLDER_MODTIME"] = false
+	configMap["OPENLIST_SNAPSHOT_CHECK_FOLDER_MODTIME"] = false
+
+	// Docker配置
+	configMap["DOCKER_CLIENT_API"] = ""
 
 	return configMap
 }

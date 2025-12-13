@@ -148,3 +148,55 @@ func (m *MediaInfo) ClearHeavyFields() {
 	m.Directors = nil
 	m.Actors = nil
 }
+
+// ToDict 将MediaInfo转换为字典，与Python版本to_dict功能一致
+func (m *MediaInfo) ToDict() map[string]interface{} {
+	result := make(map[string]interface{})
+	
+	// 基础字段
+	result["source"] = string(m.Source)
+	result["type"] = string(m.Type)
+	result["title"] = m.Title
+	result["en_title"] = m.EnTitle
+	result["hk_title"] = m.HKTitle
+	result["tw_title"] = m.TWTitle
+	result["sg_title"] = m.SGTitle
+	result["year"] = m.Year
+	result["season"] = m.Season
+	result["tmdb_id"] = m.TMDBID
+	result["imdb_id"] = m.IMDBID
+	result["tvdb_id"] = m.TVDBID
+	result["douban_id"] = m.DoubanID
+	result["bangumi_id"] = m.BangumiID
+	result["collection_id"] = m.CollectionID
+	result["original_language"] = m.OriginalLanguage
+	result["original_title"] = m.OriginalTitle
+	result["release_date"] = m.ReleaseDate
+	result["backdrop_path"] = m.BackdropPath
+	result["poster_path"] = m.PosterPath
+	result["logo_path"] = m.LogoPath
+	result["vote_average"] = m.VoteAverage
+	result["overview"] = m.Overview
+	result["genre_ids"] = m.GenreIDs
+	result["names"] = m.Names
+	result["seasons"] = m.Seasons
+	result["season_years"] = m.SeasonYears
+	result["adult"] = m.Adult
+	result["episode_run_time"] = m.EpisodeRunTime
+	result["popularity"] = m.Popularity
+	result["vote_count"] = m.VoteCount
+	result["runtime"] = m.Runtime
+	
+	// 计算属性
+	result["detail_link"] = m.DetailLink()
+	result["title_year"] = m.TitleYear()
+	result["stars"] = m.Stars()
+	result["vote_star"] = m.VoteStar()
+	
+	// 移除原始数据字段，减小体积
+	result["tmdb_info"] = nil
+	result["douban_info"] = nil
+	result["bangumi_info"] = nil
+	
+	return result
+}

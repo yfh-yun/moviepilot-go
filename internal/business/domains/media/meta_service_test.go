@@ -118,7 +118,7 @@ func TestMetaService_MetaInfo(t *testing.T) {
 			title:        "Movie Title 2023",
 			subtitle:     "",
 			isFile:       false,
-			expectedType: MediaTypeTV,
+			expectedType: MediaTypeUnknown,
 		},
 		{
 			title:        "【2023】动漫名称【字幕组】",

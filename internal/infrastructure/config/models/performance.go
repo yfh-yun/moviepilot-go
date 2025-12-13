@@ -15,7 +15,8 @@ type NetworkConfig struct {
 	ProxyUsername string   `mapstructure:"PROXY_USERNAME"`
 	ProxyPassword string   `mapstructure:"PROXY_PASSWORD"`
 	DOHEnable     bool     `mapstructure:"DOH_ENABLE" default:"false"`
-	DOHDomains    []string `mapstructure:"DOH_DOMAINS"`
+	DOHDomains    []string `mapstructure:"DOH_DOMAINS" default:":["api.themoviedb.org", "api.tmdb.org", "webservice.fanart.tv", "api.github.com", "github.com", "raw.githubusercontent.com", "codeload.github.com", "api.telegram.org"]"`
+	DOHResolvers  []string `mapstructure:"DOH_RESOLVERS" default:":["1.0.0.1", "1.1.1.1", "9.9.9.9", "149.112.112.112"]"`
 }
 
 // SchedulerConfig 调度器配置

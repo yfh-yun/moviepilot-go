@@ -36,12 +36,12 @@ type Service interface {
 
 // service 插件服务实现
 type service struct {
-	manager *plugin.HybridPluginManager
+	manager plugin.Manager
 	logger  *zap.Logger
 }
 
 // NewService 创建插件服务
-func NewService(manager *plugin.HybridPluginManager) Service {
+func NewService(manager plugin.Manager) Service {
 	return &service{
 		manager: manager,
 		logger:  logger.GetLogger(),
@@ -52,9 +52,12 @@ func NewService(manager *plugin.HybridPluginManager) Service {
 func (s *service) ListPlugins(ctx context.Context) ([]plugin.PluginInfo, error) {
 	s.logger.Info("列出所有插件")
 
-	pluginInfos := s.manager.ListPlugins()
-	infos := make([]plugin.PluginInfo, 0, len(pluginInfos))
+	pluginInfos, err := s.manager.GetPluginsInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
 
+	infos := make([]plugin.PluginInfo, 0, len(pluginInfos))
 	for _, p := range pluginInfos {
 		if p != nil {
 			infos = append(infos, *p)
@@ -68,47 +71,28 @@ func (s *service) ListPlugins(ctx context.Context) ([]plugin.PluginInfo, error) 
 func (s *service) GetPlugin(ctx context.Context, id string) (*plugin.PluginInfo, error) {
 	s.logger.Info("获取插件信息", zap.String("id", id))
 
-	plugins := s.manager.ListPlugins()
-	for _, p := range plugins {
-		if p != nil && p.ID == id {
-			return p, nil
-		}
-	}
-
-	return nil, fmt.Errorf("插件不存在: %s", id)
+	return s.manager.GetPluginInfo(ctx, id)
 }
 
 // EnablePlugin 启用插件
 func (s *service) EnablePlugin(ctx context.Context, id string) error {
 	s.logger.Info("启用插件", zap.String("id", id))
 
-	// 简化实现：通过 manager 启动插件
-	if err := s.manager.StartPlugin(id); err != nil {
-		return fmt.Errorf("启动插件失败: %w", err)
-	}
-
-	return nil
+	return s.manager.EnablePlugin(ctx, id)
 }
 
 // DisablePlugin 禁用插件
 func (s *service) DisablePlugin(ctx context.Context, id string) error {
 	s.logger.Info("禁用插件", zap.String("id", id))
 
-	// 简化实现：通过 manager 停止插件
-	if err := s.manager.StopPlugin(id); err != nil {
-		return fmt.Errorf("停止插件失败: %w", err)
-	}
-
-	return nil
+	return s.manager.DisablePlugin(ctx, id)
 }
 
 // ConfigurePlugin 配置插件
 func (s *service) ConfigurePlugin(ctx context.Context, id string, config map[string]any) error {
 	s.logger.Info("配置插件", zap.String("id", id))
 
-	// 简化实现：仅记录日志
-	s.logger.Info("配置插件成功", zap.String("id", id))
-	return nil
+	return s.manager.SetPluginConfig(ctx, id, config)
 }
 
 // ReloadPlugin 重载插件
@@ -132,6 +116,5 @@ func (s *service) ReloadPlugin(ctx context.Context, id string) error {
 func (s *service) GetPluginConfig(ctx context.Context, id string) (map[string]any, error) {
 	s.logger.Info("获取插件配置", zap.String("id", id))
 
-	// 简化实现：返回空配置
-	return make(map[string]any), nil
+	return s.manager.GetPluginConfig(ctx, id)
 }

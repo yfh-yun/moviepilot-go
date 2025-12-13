@@ -18,9 +18,9 @@ import (
 // 原Python ChainBase, 所有Service类都继承此基类, 提供通用的模块运行、缓存、消息、事件等功能
 type ServiceBase struct {
 	// 核心管理器（对应Python的manager）
-	moduleManager *modules.Manager            // 模块管理器
-	eventManager  *events.Manager             // 事件管理器
-	pluginManager *plugin.HybridPluginManager // 插件管理器（使用混合管理器）
+	moduleManager *modules.Manager        // 模块管理器
+	eventManager  *events.Manager         // 事件管理器
+	pluginManager plugin.Manager          // 插件管理器
 
 	// 消息相关（对应Python的message）
 	messageOper   *messaging.Operator     // 消息操作

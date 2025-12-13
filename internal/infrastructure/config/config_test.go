@@ -171,3 +171,107 @@ func TestIsValidCacheBackendType(t *testing.T) {
 	assert.False(t, IsValidCacheBackendType("invalid"))
 	assert.False(t, IsValidCacheBackendType("memcached"))
 }
+
+// TestNewConfigModels 测试新添加的配置模型是否被正确加载
+func TestNewConfigModels(t *testing.T) {
+	loader := NewLoader()
+	cfg, err := loader.Load()
+	assert.NoError(t, err)
+	assert.NotNil(t, cfg)
+
+	// 测试新添加的配置模型
+	assert.NotNil(t, cfg.TVDB)
+	assert.NotNil(t, cfg.Fanart)
+	assert.NotNil(t, cfg.Cloud)
+	assert.NotNil(t, cfg.Update)
+	assert.NotNil(t, cfg.MediaFormat)
+	assert.NotNil(t, cfg.Search)
+	assert.NotNil(t, cfg.Personalization)
+	assert.NotNil(t, cfg.Workflow)
+	assert.NotNil(t, cfg.Storage)
+	assert.NotNil(t, cfg.Docker)
+
+	// 验证部分默认值
+	assert.NotEmpty(t, cfg.TVDB.APIKey)
+	assert.True(t, cfg.Fanart.Enable)
+	assert.NotEmpty(t, cfg.Cloud.U115AppID)
+	assert.NotEmpty(t, cfg.Cloud.AlipanAppID)
+	assert.NotEmpty(t, cfg.Personalization.Wallpaper)
+}
+
+// TestConfigMethods 测试新添加的Config方法
+func TestConfigMethods(t *testing.T) {
+	loader := NewLoader()
+	cfg, err := loader.Load()
+	assert.NoError(t, err)
+	assert.NotNil(t, cfg)
+
+	// 测试USER_AGENT方法
+	userAgent := cfg.USER_AGENT()
+	assert.NotEmpty(t, userAgent)
+
+	// 测试NORMAL_USER_AGENT方法
+	normalUserAgent := cfg.NORMAL_USER_AGENT()
+	assert.NotEmpty(t, normalUserAgent)
+
+	// 测试VERSION_FLAG方法
+	versionFlag := cfg.VERSION_FLAG()
+	assert.Equal(t, "v2", versionFlag)
+
+	// 测试PROXY_SERVER方法
+	proxyServer := cfg.PROXY_SERVER()
+	assert.Nil(t, proxyServer) // 默认无代理
+
+	// 测试GITHUB_HEADERS方法
+	githubHeaders := cfg.GITHUB_HEADERS()
+	assert.NotNil(t, githubHeaders)
+
+	// 测试REPO_GITHUB_HEADERS方法
+	repoGithubHeaders := cfg.REPO_GITHUB_HEADERS("test/repo")
+	assert.NotNil(t, repoGithubHeaders)
+
+	// 测试VAPID方法
+	vapid := cfg.VAPID()
+	assert.NotNil(t, vapid)
+	assert.NotEmpty(t, vapid["subject"])
+	assert.NotEmpty(t, vapid["publicKey"])
+	assert.NotEmpty(t, vapid["privateKey"])
+
+	// 测试MP_DOMAIN方法
+	mpDomain := cfg.MP_DOMAIN("/test")
+	assert.Empty(t, mpDomain) // 默认无域名
+
+	// 测试RENAME_FORMAT方法
+	movieFormat := cfg.RENAME_FORMAT("movie")
+	assert.NotEmpty(t, movieFormat)
+	tvFormat := cfg.RENAME_FORMAT("tv")
+	assert.NotEmpty(t, tvFormat)
+}
+
+// TestGlobalVars 测试全局变量管理
+func TestGlobalVars(t *testing.T) {
+	globalVars := NewGlobalVar()
+	assert.NotNil(t, globalVars)
+
+	// 测试webpush订阅
+	subscription := map[string]interface{}{"endpoint": "http://example.com"}
+	globalVars.PushSubscription(subscription)
+	subscriptions := globalVars.GetSubscriptions()
+	assert.Len(t, subscriptions, 1)
+	assert.Equal(t, subscription["endpoint"], subscriptions[0]["endpoint"])
+
+	// 测试工作流停止/恢复
+	workflowID := 1
+	assert.False(t, globalVars.IsWorkflowStopped(workflowID))
+	globalVars.StopWorkflow(workflowID)
+	assert.True(t, globalVars.IsWorkflowStopped(workflowID))
+	globalVars.WorkflowResume(workflowID)
+	assert.False(t, globalVars.IsWorkflowStopped(workflowID))
+
+	// 测试文件整理停止
+	path := "/test/path"
+	assert.False(t, globalVars.IsTransferStopped(path))
+	globalVars.StopTransfer(path)
+	assert.True(t, globalVars.IsTransferStopped(path))
+	assert.False(t, globalVars.IsTransferStopped(path)) // 第二次调用应该返回false，因为已经被消费
+}

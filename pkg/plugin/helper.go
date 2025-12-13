@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -26,7 +25,6 @@ type PluginHelper struct {
 	installStatistic string
 	pluginDir        string
 	tempDir          string
-	mutex            sync.RWMutex
 }
 
 // PluginPackage 插件包信息
@@ -111,10 +109,10 @@ func (h *PluginHelper) GetPluginPackageVersion(pid, repoURL, packageVersion stri
 	// 1. 检查指定版本的插件
 	if packageVersion != "" {
 		packageURL := fmt.Sprintf("%spackage.%s.json", rawURL, packageVersion)
-		resp, err := http.Get(packageURL)
-		if err == nil && resp.StatusCode == http.StatusOK {
+		resp, respErr := http.Get(packageURL)
+		if respErr == nil && resp.StatusCode == http.StatusOK {
 			var plugins map[string]*PluginPackage
-			if err := json.NewDecoder(resp.Body).Decode(&plugins); err == nil {
+			if decodeErr := json.NewDecoder(resp.Body).Decode(&plugins); decodeErr == nil {
 				if _, exists := plugins[pid]; exists {
 					resp.Body.Close()
 					return packageVersion, nil
@@ -277,7 +275,7 @@ func (h *PluginHelper) getPluginMeta(pid, repoURL string, packageVersion *string
 }
 
 // installFromRelease 从Release安装插件
-func (h *PluginHelper) installFromRelease(pid, userRepo, releaseTag string, forceInstall bool) error {
+func (h *PluginHelper) installFromRelease(pid, userRepo, releaseTag string, _forceInstall bool) error {
 	// 构建Release API URL
 	releaseAPI := fmt.Sprintf("https://api.github.com/repos/%s/releases/tags/%s", userRepo, releaseTag)
 
@@ -300,8 +298,8 @@ func (h *PluginHelper) installFromRelease(pid, userRepo, releaseTag string, forc
 		} `json:"assets"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&releaseInfo); err != nil {
-		return fmt.Errorf("解析Release信息失败: %w", err)
+	if decodeErr := json.NewDecoder(resp.Body).Decode(&releaseInfo); decodeErr != nil {
+		return fmt.Errorf("解析Release信息失败: %w", decodeErr)
 	}
 
 	// 查找资产文件
@@ -361,7 +359,7 @@ func (h *PluginHelper) installFromRelease(pid, userRepo, releaseTag string, forc
 }
 
 // installFromFileList 从文件列表安装插件
-func (h *PluginHelper) installFromFileList(pid, userRepo string, packageVersion *string, forceInstall bool) error {
+func (h *PluginHelper) installFromFileList(pid, userRepo string, packageVersion *string, _forceInstall bool) error {
 	// 获取文件列表
 	fileList, err := h.getFileList(pid, userRepo, packageVersion)
 	if err != nil {

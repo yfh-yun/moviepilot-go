@@ -17,6 +17,10 @@ type DownloadHistoryRepository interface {
 	GetByPath(ctx context.Context, path string) (*database.DownloadHistory, error)
 	GetByHash(ctx context.Context, hash string) (*database.DownloadHistory, error)
 	GetByMediaID(ctx context.Context, tmdbID *int, doubanID *string) ([]*database.DownloadHistory, error)
+	GetLastBy(ctx context.Context, mtype, title, year, season, episode *string, tmdbID *int) ([]*database.DownloadHistory, error)
+	ListByUserDate(ctx context.Context, date, username string) ([]*database.DownloadHistory, error)
+	ListByDate(ctx context.Context, date, mtype string, tmdbID int, seasons *string) ([]*database.DownloadHistory, error)
+	ListByType(ctx context.Context, mtype string, days int) ([]*database.DownloadHistory, error)
 
 	// 分页查询
 	ListByPage(ctx context.Context, params ListDownloadHistoryParams) ([]*database.DownloadHistory, int64, error)

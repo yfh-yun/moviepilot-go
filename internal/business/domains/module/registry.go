@@ -11,6 +11,7 @@ import (
 	domains_events "moviepilot-go/internal/business/domains/events"
 	"moviepilot-go/internal/infrastructure/events"
 	"moviepilot-go/internal/repositories/interfaces"
+	"moviepilot-go/pkg/cache"
 )
 
 // Registry 模块注册表
@@ -22,10 +23,12 @@ type Registry struct {
 	configRepo interfaces.SystemConfigRepository // 配置仓库
 	ctx        context.Context                   // 上下文
 	eventBus   events.Bus                        // 事件总线
+	cache      cache.Backend                     // 缓存后端
+	cacheTTL   int64                             // 缓存过期时间（秒）
 }
 
 // NewRegistry 创建新的模块注册表
-func NewRegistry(logger *zap.Logger, cfg any, configRepo interfaces.SystemConfigRepository, ctx context.Context, eventBus events.Bus) *Registry {
+func NewRegistry(logger *zap.Logger, cfg any, configRepo interfaces.SystemConfigRepository, ctx context.Context, eventBus events.Bus, cache cache.Backend) *Registry {
 	return &Registry{
 		logger:     logger,
 		modules:    make(map[string]Module),
@@ -34,6 +37,8 @@ func NewRegistry(logger *zap.Logger, cfg any, configRepo interfaces.SystemConfig
 		configRepo: configRepo,
 		ctx:        ctx,
 		eventBus:   eventBus,
+		cache:      cache,
+		cacheTTL:   24 * 3600, // 默认缓存24小时
 	}
 }
 
@@ -46,7 +51,16 @@ func (r *Registry) Register(m Module) {
 
 // LoadModules 根据配置加载模块
 func (r *Registry) LoadModules() {
+	// 清理旧的运行模块
 	r.running = make(map[string]Module)
+
+	// 清理模块相关缓存
+	if r.cache != nil {
+		if err := r.cache.Clear("module"); err != nil {
+			r.logger.Error("清理模块缓存失败", zap.Error(err))
+		}
+	}
+
 	for id, m := range r.modules {
 		if !r.checkSetting(m) {
 			r.logger.Debug("模块未启用（配置未匹配）", zap.String("id", id))
@@ -95,29 +109,86 @@ func (r *Registry) Reload() {
 
 // GetRunningModule 根据ID获取运行中的模块
 func (r *Registry) GetRunningModule(id string) (Module, bool) {
+	// 生成缓存键
+	cacheKey := fmt.Sprintf("running_module:%s", id)
+
+	// 检查缓存
+	if r.cache != nil {
+		var cachedModule Module
+		hit, err := r.cache.Get("module", cacheKey, &cachedModule)
+		if err == nil && hit {
+			return cachedModule, true
+		}
+	}
+
+	// 缓存未命中，直接从内存获取
 	m, exists := r.running[id]
+
+	// 更新缓存
+	if exists && r.cache != nil {
+		r.cache.Set("module", cacheKey, m, r.cacheTTL)
+	}
+
 	return m, exists
 }
 
 // GetRunningModulesByType 根据类型获取运行中的模块
 func (r *Registry) GetRunningModulesByType(t ModuleType) []Module {
+	// 生成缓存键
+	cacheKey := fmt.Sprintf("running_modules_by_type:%s", t)
+
+	// 检查缓存
+	if r.cache != nil {
+		var cachedModules []Module
+		hit, err := r.cache.Get("module", cacheKey, &cachedModules)
+		if err == nil && hit {
+			return cachedModules
+		}
+	}
+
+	// 缓存未命中，从内存获取
 	var result []Module
 	for _, m := range r.running {
 		if m.Type() == t {
 			result = append(result, m)
 		}
 	}
+
+	// 更新缓存
+	if r.cache != nil {
+		r.cache.Set("module", cacheKey, result, r.cacheTTL)
+	}
+
 	return result
 }
 
 // GetRunningModulesBySubType 根据子类型获取运行中的模块
 func (r *Registry) GetRunningModulesBySubType(subType string) []Module {
+	// 生成缓存键
+	cacheKey := fmt.Sprintf("running_modules_by_subtype:%s", subType)
+
+	// 检查缓存
+	if r.cache != nil {
+		var cachedModules []Module
+		hit, err := r.cache.Get("module", cacheKey, &cachedModules)
+		if err == nil && hit {
+			return cachedModules
+		}
+	}
+
+	// 缓存未命中，从内存获取
 	var result []Module
 	for _, m := range r.running {
 		if m.SubType() == subType {
 			result = append(result, m)
 		}
 	}
+
+	// 更新缓存
+	if r.cache != nil {
+		r.cache.Set("module", cacheKey, result, r.cacheTTL)
+	}
+
 	return result
 }
 

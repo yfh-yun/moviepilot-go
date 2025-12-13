@@ -361,17 +361,14 @@ func Register(engine *gin.Engine, cfg Config) error {
 			statusHandler := subscribeapi.NewStatusHandler()
 			subscribeGroup.PUT("/status/:sub_id", statusHandler.UpdateSubscribeStatus)
 			subscribeGroup.GET("/history/:mtype", statusHandler.GetSubscribeHistory)
-			subscribeGroup.GET("/media/:media_id", statusHandler.GetMediaSubscribe)
-			subscribeGroup.DELETE("/media/:media_id", statusHandler.DeleteMediaSubscribe)
-			subscribeGroup.POST("/seerr", statusHandler.OverSeerrNotify)
 
 			// 新增媒体ID相关端点
-			subscribeGroup.GET("/media/:mediaid", subscribeHandler.GetSubscribeByMediaID)
-			subscribeGroup.DELETE("/media/:mediaid", subscribeHandler.DeleteSubscribeByMediaID)
+			subscribeGroup.GET("/media/:media_id", subscribeHandler.GetSubscribeByMediaID)
+			subscribeGroup.DELETE("/media/:media_id", subscribeHandler.DeleteSubscribeByMediaID)
 			// OverSeerr/JellySeerr通知订阅
 			subscribeGroup.POST("/seerr", subscribeHandler.SeerrSubscribe)
 			// 热门订阅
-			subscribeGroup.GET("/popular", subscribeHandler.GetPopularSubscribes)
+			subscribeGroup.GET("/popular-subscribes", subscribeHandler.GetPopularSubscribes)
 		}
 
 		// /api/v1/subscribes 兼容路由
@@ -410,17 +407,10 @@ func Register(engine *gin.Engine, cfg Config) error {
 			statusHandler := subscribeapi.NewStatusHandler()
 			v1SubscribeGroup.PUT("/status/:sub_id", statusHandler.UpdateSubscribeStatus)
 			v1SubscribeGroup.GET("/history/:mtype", statusHandler.GetSubscribeHistory)
-			v1SubscribeGroup.GET("/media/:media_id", statusHandler.GetMediaSubscribe)
-			v1SubscribeGroup.DELETE("/media/:media_id", statusHandler.DeleteMediaSubscribe)
-			v1SubscribeGroup.POST("/seerr", statusHandler.OverSeerrNotify)
-
-			// 新增媒体ID相关端点
-			v1SubscribeGroup.GET("/media/:mediaid", subscribeHandler.GetSubscribeByMediaID)
-			v1SubscribeGroup.DELETE("/media/:mediaid", subscribeHandler.DeleteSubscribeByMediaID)
 			// OverSeerr/JellySeerr通知订阅
 			v1SubscribeGroup.POST("/seerr", subscribeHandler.SeerrSubscribe)
 			// 热门订阅
-			v1SubscribeGroup.GET("/popular", subscribeHandler.GetPopularSubscribes)
+			v1SubscribeGroup.GET("/popular-subscribes", subscribeHandler.GetPopularSubscribes)
 		}
 
 		// 站点路由
@@ -580,14 +570,14 @@ func Register(engine *gin.Engine, cfg Config) error {
 		tmdbGroup.GET("/:tmdb_id/recommendations", tmdbHandler.GetRecommendations)
 
 		// 新增路由
-		tmdbGroup.GET("/seasons/:tmdbid", tmdbHandler.GetSeasons)
-		tmdbGroup.GET("/similar/:tmdbid/:type_name", tmdbHandler.GetSimilar)
-		tmdbGroup.GET("/recommend/:tmdbid/:type_name", tmdbHandler.GetRecommendByType)
+		tmdbGroup.GET("/seasons/:tmdb_id", tmdbHandler.GetSeasons)
+		tmdbGroup.GET("/similar/:tmdb_id/:type_name", tmdbHandler.GetSimilar)
+		tmdbGroup.GET("/recommend/:tmdb_id/:type_name", tmdbHandler.GetRecommendByType)
 		tmdbGroup.GET("/collection/:collection_id", tmdbHandler.GetCollection)
 		tmdbGroup.GET("/person/:person_id", tmdbHandler.GetPersonDetail)
 		tmdbGroup.GET("/person/credits/:person_id", tmdbHandler.GetPersonCredits)
-		tmdbGroup.GET("/:tmdbid/:season", tmdbHandler.GetEpisodes)
-		tmdbGroup.GET("/credits/:tmdbid/:type_name", tmdbHandler.GetCreditsByType)
+		tmdbGroup.GET("/:tmdb_id/:season", tmdbHandler.GetEpisodes)
+		tmdbGroup.GET("/credits/:tmdb_id/:type_name", tmdbHandler.GetCreditsByType)
 	}
 
 	// 豆瓣 API 路由
@@ -715,67 +705,24 @@ func Register(engine *gin.Engine, cfg Config) error {
 	// 创建插件配置存储和数据存储的模拟实现
 	mockConfigStore := plugin.NewMockConfigStore()
 	mockDataStore := plugin.NewMockDataStore()
-	// 创建混合插件管理器
-	pluginManager := plugin.NewHybridPluginManager(mockConfigStore, mockDataStore)
+	// 创建事件管理器的模拟实现
+	mockEventManager := plugin.NewMockEventManager()
+	// 创建插件管理器
+	pluginManager := plugin.NewPluginManager(mockConfigStore, mockDataStore, mockEventManager)
 	// 创建插件服务
 	pluginService := pluginbiz.NewService(pluginManager)
 	// 创建插件处理器
 	pluginHandler := pluginapi.NewHandler(pluginService)
 
-	pluginGroup := api.Group("/plugin")
-	{
-		// 插件管理路由
-		pluginGroup.GET("", pluginHandler.AllPlugins)
-		pluginGroup.GET("/installed", pluginHandler.InstalledPlugins)
-		pluginGroup.GET("/statistic", pluginHandler.PluginStatistic)
-		pluginGroup.GET("/reload/:plugin_id", pluginHandler.ReloadPlugin)
-		pluginGroup.GET("/install/:plugin_id", pluginHandler.InstallPlugin)
-		pluginGroup.GET("/remotes", pluginHandler.PluginRemotes)
-		pluginGroup.GET("/form/:plugin_id", pluginHandler.PluginForm)
-		pluginGroup.GET("/page/:plugin_id", pluginHandler.PluginPage)
-		pluginGroup.GET("/dashboard/meta", pluginHandler.PluginDashboardMeta)
-		pluginGroup.GET("/dashboard/:plugin_id/:key", pluginHandler.PluginDashboardByKey)
-		pluginGroup.GET("/dashboard/:plugin_id", pluginHandler.PluginDashboard)
-		pluginGroup.GET("/reset/:plugin_id", pluginHandler.ResetPlugin)
-		pluginGroup.GET("/file/:plugin_id/*filepath", pluginHandler.PluginStaticFile)
-		pluginGroup.GET("/folders", pluginHandler.GetPluginFolders)
-		pluginGroup.POST("/folders", pluginHandler.SavePluginFolders)
-		pluginGroup.POST("/folders/:folder_name", pluginHandler.CreatePluginFolder)
-		pluginGroup.DELETE("/folders/:folder_name", pluginHandler.DeletePluginFolder)
-		pluginGroup.PUT("/folders/:folder_name/plugins", pluginHandler.UpdateFolderPlugins)
-		pluginGroup.POST("/clone/:plugin_id", pluginHandler.ClonePlugin)
-		pluginGroup.GET("/:plugin_id", pluginHandler.GetPluginConfig)
-		pluginGroup.PUT("/:plugin_id", pluginHandler.UpdatePluginConfig)
-		pluginGroup.DELETE("/:plugin_id", pluginHandler.UninstallPlugin)
-	}
+	// 使用Handler结构体的RegisterRoutes方法注册路由
+	pluginHandler.RegisterRoutes(api)
 
 	// /api/v1/plugin 兼容路由
-	v1PluginGroup := engine.Group("/api/v1/plugin")
+	v1PluginGroup := engine.Group("/api/v1")
 	v1PluginGroup.Use(middlewares.AuthMiddleware(baseJWTManager))
 	{
-		// 插件管理兼容路由
-		v1PluginGroup.GET("", pluginHandler.AllPlugins)
-		v1PluginGroup.GET("/installed", pluginHandler.InstalledPlugins)
-		v1PluginGroup.GET("/statistic", pluginHandler.PluginStatistic)
-		v1PluginGroup.GET("/reload/:plugin_id", pluginHandler.ReloadPlugin)
-		v1PluginGroup.GET("/install/:plugin_id", pluginHandler.InstallPlugin)
-		v1PluginGroup.GET("/remotes", pluginHandler.PluginRemotes)
-		v1PluginGroup.GET("/form/:plugin_id", pluginHandler.PluginForm)
-		v1PluginGroup.GET("/page/:plugin_id", pluginHandler.PluginPage)
-		v1PluginGroup.GET("/dashboard/meta", pluginHandler.PluginDashboardMeta)
-		v1PluginGroup.GET("/dashboard/:plugin_id/:key", pluginHandler.PluginDashboardByKey)
-		v1PluginGroup.GET("/dashboard/:plugin_id", pluginHandler.PluginDashboard)
-		v1PluginGroup.GET("/reset/:plugin_id", pluginHandler.ResetPlugin)
-		v1PluginGroup.GET("/file/:plugin_id/*filepath", pluginHandler.PluginStaticFile)
-		v1PluginGroup.GET("/folders", pluginHandler.GetPluginFolders)
-		v1PluginGroup.POST("/folders", pluginHandler.SavePluginFolders)
-		v1PluginGroup.POST("/folders/:folder_name", pluginHandler.CreatePluginFolder)
-		v1PluginGroup.DELETE("/folders/:folder_name", pluginHandler.DeletePluginFolder)
-		v1PluginGroup.PUT("/folders/:folder_name/plugins", pluginHandler.UpdateFolderPlugins)
-		v1PluginGroup.POST("/clone/:plugin_id", pluginHandler.ClonePlugin)
-		v1PluginGroup.GET("/:plugin_id", pluginHandler.GetPluginConfig)
-		v1PluginGroup.PUT("/:plugin_id", pluginHandler.UpdatePluginConfig)
-		v1PluginGroup.DELETE("/:plugin_id", pluginHandler.UninstallPlugin)
+		// 使用Handler结构体的RegisterRoutes方法注册兼容路由
+		pluginHandler.RegisterRoutes(v1PluginGroup)
 	}
 
 	// Recommend API 路由

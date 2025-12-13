@@ -44,9 +44,9 @@ func (h *Handler) Login(c *gin.Context) {
 	// 支持JSON和Form-Data两种格式
 	var req dto.LoginRequest
 
-	// 首先尝试绑定JSON格式
-	if err := c.ShouldBindJSON(&req); err != nil {
-		// 如果JSON绑定失败，尝试绑定Form-Data格式
+	// 使用ShouldBind自动根据Content-Type选择绑定方式
+	if err := c.ShouldBind(&req); err != nil {
+		// 如果自动绑定失败，尝试手动获取表单数据
 		req.Username = c.PostForm("username")
 		req.Password = c.PostForm("password")
 		req.OtpPassword = c.PostForm("otp_password")

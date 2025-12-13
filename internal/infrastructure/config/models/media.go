@@ -2,10 +2,14 @@ package models
 
 // MediaConfig 媒体配置
 type MediaConfig struct {
-	SearchSource      string `mapstructure:"SEARCH_SOURCE" default:"tmdb"`
-	RecognizeSource   string `mapstructure:"RECOGNIZE_SOURCE" default:"tmdb"`
-	MovieRenameFormat string `mapstructure:"MOVIE_RENAME_FORMAT"`
-	TVRenameFormat    string `mapstructure:"TV_RENAME_FORMAT"`
+	SearchSource      string   `mapstructure:"SEARCH_SOURCE" default:"themoviedb"`
+	RecognizeSource   string   `mapstructure:"RECOGNIZE_SOURCE" default:"themoviedb"`
+	ScrapSource       string   `mapstructure:"SCRAP_SOURCE" default:"themoviedb"`
+	MovieRenameFormat string   `mapstructure:"MOVIE_RENAME_FORMAT" default:"{{title}}{% if year %} ({{year}}){% endif %}/{{title}}{% if year %} ({{year}}){% endif %}{% if part %}-{{part}}{% endif %}{% if videoFormat %} - {{videoFormat}}{% endif %}{{fileExt}}"`
+	TVRenameFormat    string   `mapstructure:"TV_RENAME_FORMAT" default:"{{title}}{% if year %} ({{year}}){% endif %}/Season {{season}}/{{title}} - {{season_episode}}{% if part %}-{{part}}{% endif %}{% if episode %} - 第 {{episode}} 集{% endif %}{{fileExt}}"`
+	RenameFormatS0Names []string `mapstructure:"RENAME_FORMAT_S0_NAMES" default:":["Specials", "SPs"]"`
+	DefaultSub        string   `mapstructure:"DEFAULT_SUB" default:"zh-cn"`
+	ScrapFollowTMDB   bool     `mapstructure:"SCRAP_FOLLOW_TMDB" default:"true"`
 }
 
 // TMDBConfig TMDB配置

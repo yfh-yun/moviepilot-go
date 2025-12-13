@@ -128,7 +128,7 @@ func (s *authService) Login(ctx context.Context, req *LoginRequest, ip string) (
 	}
 
 	// 检查用户状态
-	if !user.IsActive() {
+	if !user.IsActive {
 		return nil, fmt.Errorf("用户已被禁用")
 	}
 

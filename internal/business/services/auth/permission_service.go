@@ -50,7 +50,7 @@ func (s *permissionService) CheckPermission(ctx context.Context, userID uint, pe
 	}
 
 	// 检查用户状态
-	if !user.IsActive() {
+	if !user.IsActiveUser() {
 		return false, fmt.Errorf("用户已被禁用")
 	}
 
@@ -144,7 +144,7 @@ func (s *permissionService) HasRole(ctx context.Context, userID uint, roleName s
 	}
 
 	// 检查用户状态
-	if !user.IsActive() {
+	if !user.IsActiveUser() {
 		return false, fmt.Errorf("用户已被禁用")
 	}
 

@@ -124,3 +124,69 @@ func (m *MockDataStore) DeleteAll(ctx context.Context, pluginID string) error {
 	delete(m.data, pluginID)
 	return nil
 }
+
+// MockEventManager 模拟事件管理器实现
+type MockEventManager struct {
+	mu            sync.RWMutex
+	subscriptions []*EventSubscription
+}
+
+// NewMockEventManager 创建模拟事件管理器
+func NewMockEventManager() *MockEventManager {
+	return &MockEventManager{
+		subscriptions: make([]*EventSubscription, 0),
+	}
+}
+
+// PublishEvent 发布事件
+func (m *MockEventManager) PublishEvent(ctx context.Context, event *Event) error {
+	// 模拟发布事件
+	return nil
+}
+
+// PublishEventAsync 异步发布事件
+func (m *MockEventManager) PublishEventAsync(event *Event) {
+	// 模拟异步发布事件
+}
+
+// SubscribeEvent 订阅事件
+func (m *MockEventManager) SubscribeEvent(eventType EventType, handler EventHandler, filter EventFilter) (string, error) {
+	// 模拟订阅事件
+	return "mock-subscription-1", nil
+}
+
+// UnsubscribeEvent 取消订阅
+func (m *MockEventManager) UnsubscribeEvent(subscriptionID string) error {
+	// 模拟取消订阅
+	return nil
+}
+
+// SubscribeMultipleEvents 订阅多个事件
+func (m *MockEventManager) SubscribeMultipleEvents(eventTypes []EventType, handler EventHandler, filter EventFilter) ([]string, error) {
+	// 模拟订阅多个事件
+	return []string{"mock-subscription-1"}, nil
+}
+
+// UnsubscribeAllEvents 取消所有订阅
+func (m *MockEventManager) UnsubscribeAllEvents() error {
+	// 模拟取消所有订阅
+	return nil
+}
+
+// GetSubscriptions 获取所有订阅
+func (m *MockEventManager) GetSubscriptions() []*EventSubscription {
+	// 模拟获取所有订阅
+	return m.subscriptions
+}
+
+// GetSubscriptionsByEventType 获取指定事件类型的订阅
+func (m *MockEventManager) GetSubscriptionsByEventType(eventType EventType) []*EventSubscription {
+	// 模拟获取指定事件类型的订阅
+	return m.subscriptions
+}
+
+// Close 关闭事件管理器
+func (m *MockEventManager) Close() error {
+	// 模拟关闭事件管理器
+	return nil
+}

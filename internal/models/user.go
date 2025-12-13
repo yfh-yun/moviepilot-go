@@ -11,10 +11,16 @@ type User struct {
 	ID           uint           `gorm:"primaryKey" json:"id"`
 	Username     string         `gorm:"uniqueIndex;size:50;not null" json:"username"`
 	Email        string         `gorm:"uniqueIndex;size:100;not null" json:"email"`
-	PasswordHash string         `gorm:"size:255;not null" json:"-"` // 不在 JSON 中返回密码
+	PasswordHash string         `gorm:"column:hashed_password;size:255;not null" json:"-"` // 不在 JSON 中返回密码
 	Nickname     string         `gorm:"size:100" json:"nickname"`
 	Avatar       string         `gorm:"size:500" json:"avatar"`
 	Status       string         `gorm:"size:20;default:active;not null" json:"status"` // active, disabled, locked
+	IsActive     bool           `gorm:"default:true" json:"is_active"`
+	IsSuperuser  bool           `gorm:"default:false" json:"is_superuser"`
+	IsOTP        bool           `gorm:"default:false" json:"is_otp"` // 是否开启OTP验证
+	OTPSecret    string         `gorm:"size:100" json:"-"`           // OTP密钥，不在JSON中返回
+	Permissions  string         `gorm:"type:text" json:"-"`          // 权限，JSON格式
+	Settings     string         `gorm:"type:text" json:"-"`          // 个性化设置，JSON格式
 	LastLoginAt  *time.Time     `json:"last_login_at"`
 	LastLoginIP  string         `gorm:"size:50" json:"last_login_ip"`
 	CreatedAt    time.Time      `json:"created_at"`
@@ -43,17 +49,17 @@ func (u *User) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
-// IsActive 检查用户是否活跃
-func (u *User) IsActive() bool {
+// IsActiveUser 检查用户是否活跃
+func (u *User) IsActiveUser() bool {
 	return u.Status == "active"
 }
 
-// IsDisabled 检查用户是否被禁用
-func (u *User) IsDisabled() bool {
+// IsDisabledUser 检查用户是否被禁用
+func (u *User) IsDisabledUser() bool {
 	return u.Status == "disabled"
 }
 
-// IsLocked 检查用户是否被锁定
-func (u *User) IsLocked() bool {
+// IsLockedUser 检查用户是否被锁定
+func (u *User) IsLockedUser() bool {
 	return u.Status == "locked"
 }

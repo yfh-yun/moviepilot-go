@@ -2,9 +2,9 @@ package dto
 
 // LoginRequest 登录请求
 type LoginRequest struct {
-	Username    string `json:"username" binding:"required"`
-	Password    string `json:"password" binding:"required"`
-	OtpPassword string `json:"otp_password"` // MFA验证码
+	Username    string `json:"username" form:"username" binding:"required"`
+	Password    string `json:"password" form:"password" binding:"required"`
+	OtpPassword string `json:"otp_password" form:"otp_password"` // MFA验证码
 }
 
 // TokenResponse Token响应

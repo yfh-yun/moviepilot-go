@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"go.uber.org/zap"
+
+	"moviepilot-go/pkg/cache"
 )
 
 // Module 模块接口
@@ -64,18 +66,22 @@ func (m *BaseModule) Stop() error {
 // Manager 模块管理器
 // 原Python: ModuleManager in app/core/module.py
 type Manager struct {
-	modules map[string]Module   // 模块ID -> 模块
-	methods map[string][]Module // 方法名 -> 模块列表
-	mu      sync.RWMutex
-	logger  *zap.Logger
+	modules  map[string]Module   // 模块ID -> 模块
+	methods  map[string][]Module // 方法名 -> 模块列表
+	mu       sync.RWMutex
+	logger   *zap.Logger
+	cache    cache.Backend // 缓存后端
+	cacheTTL int64         // 缓存过期时间（秒）
 }
 
 // NewManager 创建模块管理器
-func NewManager(logger *zap.Logger) *Manager {
+func NewManager(logger *zap.Logger, cache cache.Backend) *Manager {
 	return &Manager{
-		modules: make(map[string]Module),
-		methods: make(map[string][]Module),
-		logger:  logger,
+		modules:  make(map[string]Module),
+		methods:  make(map[string][]Module),
+		logger:   logger,
+		cache:    cache,
+		cacheTTL: 24 * 3600, // 默认缓存24小时
 	}
 }
 
@@ -96,6 +102,13 @@ func (m *Manager) Register(module Module) error {
 	}
 
 	m.modules[moduleID] = module
+
+	// 清理模块相关缓存
+	if m.cache != nil {
+		if err := m.cache.Clear("module_method"); err != nil {
+			m.logger.Error("清理模块方法缓存失败", zap.Error(err))
+		}
+	}
 
 	m.logger.Info("注册模块",
 		zap.String("module_id", moduleID),
@@ -130,6 +143,13 @@ func (m *Manager) Unregister(moduleID string) error {
 				m.methods[method] = append(modules[:i], modules[i+1:]...)
 				break
 			}
+		}
+	}
+
+	// 清理模块相关缓存
+	if m.cache != nil {
+		if err := m.cache.Clear("module_method"); err != nil {
+			m.logger.Error("清理模块方法缓存失败", zap.Error(err))
 		}
 	}
 
@@ -172,6 +192,14 @@ func (m *Manager) RegisterMethod(methodName string, module Module) {
 
 	m.methods[methodName] = append(m.methods[methodName], module)
 
+	// 清理该方法的缓存
+	if m.cache != nil {
+		cacheKey := fmt.Sprintf("running_modules_by_method:%s", methodName)
+		if err := m.cache.Delete("module_method", cacheKey); err != nil {
+			m.logger.Error("清理方法缓存失败", zap.String("method", methodName), zap.Error(err))
+		}
+	}
+
 	m.logger.Debug("注册模块方法",
 		zap.String("method", methodName),
 		zap.String("module_id", module.GetID()))
@@ -180,6 +208,18 @@ func (m *Manager) RegisterMethod(methodName string, module Module) {
 // GetRunningModules 获取运行中的模块（按优先级排序）
 // 原Python: get_running_modules(method)
 func (m *Manager) GetRunningModules(methodName string) []Module {
+	// 生成缓存键
+	cacheKey := fmt.Sprintf("running_modules_by_method:%s", methodName)
+
+	// 检查缓存
+	if m.cache != nil {
+		var cachedModules []Module
+		hit, err := m.cache.Get("module_method", cacheKey, &cachedModules)
+		if err == nil && hit {
+			return cachedModules
+		}
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -199,6 +239,11 @@ func (m *Manager) GetRunningModules(methodName string) []Module {
 				result[i], result[j] = result[j], result[i]
 			}
 		}
+	}
+
+	// 更新缓存
+	if m.cache != nil {
+		m.cache.Set("module_method", cacheKey, result, m.cacheTTL)
 	}
 
 	return result

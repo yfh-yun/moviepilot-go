@@ -12,6 +12,45 @@ const (
 	StateEnabled  State = "enabled"
 )
 
+// EventPublisher 事件发布者接口
+type EventPublisher interface {
+	// PublishEvent 发布事件
+	PublishEvent(ctx context.Context, event *Event) error
+	
+	// PublishEventAsync 异步发布事件
+	PublishEventAsync(event *Event)
+}
+
+// EventSubscriber 事件订阅者接口
+type EventSubscriber interface {
+	// SubscribeEvent 订阅事件
+	SubscribeEvent(eventType EventType, handler EventHandler, filter EventFilter) (string, error)
+	
+	// UnsubscribeEvent 取消订阅
+	UnsubscribeEvent(subscriptionID string) error
+	
+	// SubscribeMultipleEvents 订阅多个事件
+	SubscribeMultipleEvents(eventTypes []EventType, handler EventHandler, filter EventFilter) ([]string, error)
+	
+	// UnsubscribeAllEvents 取消所有订阅
+	UnsubscribeAllEvents() error
+}
+
+// EventManager 事件管理器接口，同时具备发布和订阅功能
+type EventManager interface {
+	EventPublisher
+	EventSubscriber
+	
+	// GetSubscriptions 获取所有订阅
+	GetSubscriptions() []*EventSubscription
+	
+	// GetSubscriptionsByEventType 获取指定事件类型的订阅
+	GetSubscriptionsByEventType(eventType EventType) []*EventSubscription
+	
+	// Close 关闭事件管理器
+	Close() error
+}
+
 // Plugin 插件接口定义（Go 侧抽象）
 type Plugin interface {
 	// ID 获取插件ID
@@ -60,6 +99,9 @@ type Plugin interface {
 	Dashboard(ctx context.Context, key, userAgent string) (*Dashboard, error)
 	// RenderMode 获取渲染模式
 	RenderMode(ctx context.Context) (string, string) // mode, distPath
+	
+	// OnEvent 事件处理方法，插件可以实现此方法来处理事件
+	OnEvent(ctx context.Context, event *Event) error
 }
 
 // Command 插件命令结构

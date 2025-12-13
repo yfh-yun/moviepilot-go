@@ -1,5 +1,9 @@
 package media
 
+import (
+	"moviepilot-go/pkg/cache"
+)
+
 // MediaType 媒体类型枚举
 type MediaType string
 
@@ -50,4 +54,5 @@ type MetaParserDeps struct {
 	ReleaseMatcher     *ReleaseGroupsMatcher
 	CustomizationMatch *CustomizationMatcher
 	StreamingPlatforms *StreamingPlatforms
+	Cache              cache.Backend
 }

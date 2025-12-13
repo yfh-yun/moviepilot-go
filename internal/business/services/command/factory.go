@@ -46,25 +46,86 @@ func (f *Factory) Create() (Service, error) {
 func (f *Factory) registerHandlers(commands Service) error {
 	// 注册帮助命令
 	helpHandler := NewHelpHandler(commands)
-	if err := commands.Register(helpHandler); err != nil {
+	if err := commands.RegisterHandler(helpHandler); err != nil {
 		return err
 	}
 
 	// 注册状态命令
 	statusHandler := NewStatusHandler()
-	if err := commands.Register(statusHandler); err != nil {
+	if err := commands.RegisterHandler(statusHandler); err != nil {
 		return err
 	}
 
 	// 注册订阅命令
 	subscribeHandler := NewSubscribeHandler()
-	if err := commands.Register(subscribeHandler); err != nil {
+	if err := commands.RegisterHandler(subscribeHandler); err != nil {
 		return err
 	}
 
 	// 注册取消订阅命令
 	unsubscribeHandler := NewUnsubscribeHandler()
-	if err := commands.Register(unsubscribeHandler); err != nil {
+	if err := commands.RegisterHandler(unsubscribeHandler); err != nil {
+		return err
+	}
+
+	// 注册清理缓存命令
+	clearCacheHandler := NewClearCacheHandler()
+	if err := commands.RegisterHandler(clearCacheHandler); err != nil {
+		return err
+	}
+
+	// 注册版本命令
+	versionHandler := NewVersionHandler()
+	if err := commands.RegisterHandler(versionHandler); err != nil {
+		return err
+	}
+
+	// 注册重启命令
+	restartHandler := NewRestartHandler()
+	if err := commands.RegisterHandler(restartHandler); err != nil {
+		return err
+	}
+
+	// 注册正在下载命令
+	downloadingHandler := NewDownloadingHandler()
+	if err := commands.RegisterHandler(downloadingHandler); err != nil {
+		return err
+	}
+
+	// 注册手动整理命令
+	redoHandler := NewRedoHandler()
+	if err := commands.RegisterHandler(redoHandler); err != nil {
+		return err
+	}
+
+	// 注册站点相关命令
+	sitesHandler := NewSitesHandler()
+	if err := commands.RegisterHandler(sitesHandler); err != nil {
+		return err
+	}
+
+	siteCookieHandler := NewSiteCookieHandler()
+	if err := commands.RegisterHandler(siteCookieHandler); err != nil {
+		return err
+	}
+
+	siteStatisticHandler := NewSiteStatisticHandler()
+	if err := commands.RegisterHandler(siteStatisticHandler); err != nil {
+		return err
+	}
+
+	siteEnableHandler := NewSiteEnableHandler()
+	if err := commands.RegisterHandler(siteEnableHandler); err != nil {
+		return err
+	}
+
+	siteDisableHandler := NewSiteDisableHandler()
+	if err := commands.RegisterHandler(siteDisableHandler); err != nil {
+		return err
+	}
+
+	siteRefreshHandler := NewSiteRefreshHandler()
+	if err := commands.RegisterHandler(siteRefreshHandler); err != nil {
 		return err
 	}
 
